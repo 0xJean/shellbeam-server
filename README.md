@@ -1,67 +1,61 @@
-# Komari
+# ShellBeam Server
 
-![Badge](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fkomari-monitor%2Fkomari&label=&icon=github&color=%23a370f7&message=&style=flat&tz=UTC)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/komari-monitor/komari)
+[简体中文](README_zh-cn.md)
 
-![komari](https://socialify.git.ci/komari-monitor/komari/image?description=1&font=Inter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fkomari-monitor%2Fkomari-web%2Fd54ce1288df41ead08aa19f8700186e68028a889%2Fpublic%2Ffavicon.png&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
+ShellBeam Server is the self-hosted monitoring backend for [ShellBeam](https://github.com/0xJean/shellbeam). It is an independent fork of [Komari](https://github.com/komari-monitor/komari), maintained by the ShellBeam project. It is not an official Komari release.
 
-[English](./README.md) | [简体中文](./README_zh-cn.md)
+The server retains Komari's API, Agent protocol, account storage, monitoring history, and plugin interfaces. ShellBeam provides its own client. The embedded page identifies the service and points to the client; it does not provide a complete Web administration console. Builds do not download or bundle `komari-web`.
 
-Komari is a lightweight, self-hosted server monitoring solution. It provides a simple and efficient way to track server performance through a web interface, with metrics collected by a lightweight agent.
+## Run from source
 
-> [!WARNING]
-> Komari is a self-hosted monitoring and control application. Deploy it only on systems you own or are authorized to manage. You are solely responsible for how you deploy and use Komari. The developers accept no liability for unauthorized access, persistence, command execution, other misuse, or any resulting consequences.
+Install Go 1.25 or later and a C compiler for CGO SQLite, then run:
 
-[Documentation](https://www.komari.wiki/) | [Telegram Group](https://t.me/komari_monitor)
+```sh
+go build -o dist/shellbeam-server .
+./dist/shellbeam-server server --listen 127.0.0.1:25774
+```
 
-## Features
+For a build with an explicit ShellBeam version and the checkout's commit hash:
 
-- **Real-time monitoring**: Displays monitoring data at one-second intervals.
-- **Lightweight and efficient**: Uses minimal system resources and works well on servers of any size.
-- **Self-hosted**: Keeps you in control of your data and privacy.
-- **Web interface**: Provides an intuitive, easy-to-use monitoring dashboard.
-- **Extensible**: Supports custom themes and plugins.
+```sh
+make build
+./dist/shellbeam-server --version
+```
 
-## Quick Start
+The default primary database remains `./data/komari.db`. On a new instance, connect from the ShellBeam client, choose **Initialize a new service**, and supply an administrator account and a metrics database path on the server, such as `./data/metrics.db`. Existing initialized services use administrator sign-in or their existing API key.
 
-| Platform                                                                                                                                                                                                  | Description                                                                                                                                                                                           |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a href="https://app.rainyun.com/apps/rca/store/6780/NzYxNzAz_"><img src="https://rainyun-apps.cn-nb1.rains3.com/materials/deploy-on-rainyun-cn.svg" alt="Rainyun" width="180"></a>                       | Deploy websites, databases, and hundreds of popular apps in seconds with flexible hourly billing. [Get started for just ¥5/month. Deploy now!](https://app.rainyun.com/apps/rca/store/6780/NzYxNzAz_) |
-| <a href="https://apps.fit2cloud.com/1panel/komari"><img src="https://raw.githubusercontent.com/komari-monitor/public/refs/heads/main/images/1panel-logo-blue.png" alt="1Panel App Store" width="180"></a> | A modern, open-source Linux server management panel for websites, databases, containers, files, backups, security, and AI, with one-click deployment from its app store.                              |
+## Run with Docker
 
-For instructions on Docker deployment, binary installation, building from source, and updates, see the [installation guide](https://www.komari.wiki/en/install/quick-start).
+```sh
+docker build -t shellbeam-server:local .
+docker compose up -d --build
+```
 
-## Screenshots
+The Compose example builds locally, persists `/app/data` in a named volume, and publishes port `25774` on host loopback. Configure your HTTPS reverse proxy or bind the published port to the interface needed by your clients and Agents. Use `/app/data/metrics.db` when initializing this container so metrics share the persistent volume. The container runs as UID/GID `10001`; bind-mounted data must be writable by that account.
 
-| Page                | Screenshot                                                                                                                                                             |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Home Dashboard      | <img src="https://b2.akz.moe/awesome-pictures/komari-screenshot/%E4%B8%BB%E9%A1%B5%E4%BB%AA%E8%A1%A8%E7%9B%98-en.webp" width="800" alt="Home Dashboard">               |
-| Admin Dashboard     | <img src="https://b2.akz.moe/awesome-pictures/komari-screenshot/%E5%90%8E%E5%8F%B0%E4%BB%AA%E8%A1%A8%E7%9B%98-en.webp" width="800" alt="Admin Dashboard">              |
-| History Charts      | <img src="https://b2.akz.moe/awesome-pictures/komari-screenshot/%E5%8E%86%E5%8F%B2%E5%9B%BE%E8%A1%A8-en.webp" width="800" alt="History Charts">                        |
-| Web Terminal        | <img src="https://b2.akz.moe/awesome-pictures/komari-screenshot/%E7%BD%91%E9%A1%B5%E7%BB%88%E7%AB%AF.webp" width="800" alt="Web Terminal">                             |
-| Customizable Themes | <img src="https://b2.akz.moe/awesome-pictures/komari-screenshot/%E4%B8%BB%E9%A2%98%E5%8F%AF%E8%87%AA%E5%AE%9A%E4%B9%89-en.webp" width="800" alt="Customizable Themes"> |
-| Theme Market        | <img src="https://b2.akz.moe/awesome-pictures/komari-screenshot/%E4%B8%BB%E9%A2%98%E5%B8%82%E5%9C%BA-en.webp" width="800" alt="Theme Market">                          |
+A Git checkout supplies the build commit automatically. Building a source archive without `.git` requires `--build-arg VERSION_HASH=<commit>`.
 
-## Sponsors
+## Compatibility and operation
 
-Interested in sponsoring Komari? Contact the developer via [email](mailto:komari@akz.moe) or [Telegram](https://t.me/mamomoe).
+- ShellBeam's product version is independent of the Komari API compatibility version. `/api/version` keeps `version: "1.6.0"`; build flags only set `utils.ServerVersion` and `utils.VersionHash`.
+- Existing Komari Agent executables remain usable. Server releases do not install, rename, or update Agents.
+- `KOMARI_LISTEN` and the existing database flags remain supported. `SHELLBEAM_LISTEN` is a branded alias; an explicit `--listen` flag takes precedence.
+- Existing data should first be tested on an offline backup with the same filesystem paths. Older databases may require the retained migration or recovery APIs; the service entry page does not perform these operations.
 
-| Sponsor                                                                                                                                                                                          | Description                                                                                                                                                                                                                                                                   |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a href="https://axisnow.io/zh?utm=komari"><img src="https://raw.githubusercontent.com/komari-monitor/public/refs/heads/main/images/AxisNow.jpg" alt="AxisNow" width="180"></a> | [Self-Hosted Private CDN \| Subscription-Based CDN-Like Service \| A Fully Controlled, Flexible, Modular CDN Network](https://axisnow.io/zh?utm=komari) |
-| <a href="https://whmcs.as211392.com/aff.php?aff=110"><img src="https://raw.githubusercontent.com/komari-monitor/public/refs/heads/main/images/dreamcloud.png" alt="Dream Cloud" width="180"></a> | Cost-effective Asia-Pacific hosting with direct connectivity and robust DDoS protection, backed by transparent capacity claims.                                                                                                                                               |
-| <a href="https://sharon.io"><img src="https://raw.githubusercontent.com/komari-monitor/public/refs/heads/main/images/sharon-networks.webp" alt="Sharon Networks" width="180"></a>                | Premium China-optimized connectivity from Asia-Pacific data centers, featuring low latency, high bandwidth, and Tbps-scale local DDoS mitigation. Join the [Telegram community](https://t.me/SharonNetwork) to participate in charitable initiatives and community giveaways. |
+See [operation and migration](docs/shellbeam-server.md) for the initialization, authentication, persistence, and recovery boundaries. [UPSTREAM.md](UPSTREAM.md) records the exact upstream source and attribution.
 
-## Contributors
+## Development and releases
 
-Thanks to everyone who has contributed code, themes, plugins, documentation, translations, bug reports, or feedback to Komari.
+```sh
+make check       # go test ./... and go vet ./...
+make build       # dist/shellbeam-server, with product version and commit
+make notices     # third-party license texts; requires Python 3
+```
 
-<a href="https://github.com/komari-monitor/komari/graphs/contributors"><img src="https://contributors-img.web.app/image?repo=komari-monitor/komari" alt="Komari contributors" width="600"></a>
+CI tests, vets, builds, and checks a local container image. The release workflow can build manually or from a `v*` version tag. It packages Linux amd64/arm64 binaries compiled with Go 1.25 on Debian Bookworm, checksums, MIT license, upstream NOTICE, and dependency license texts. Tag builds create a draft GitHub release; manual builds publish a draft only when requested. No workflow deploys a service or pushes container images.
 
-## Support the Project
+Linux is the release and full-test target. On macOS, inherited JavaScript runtime tests include Linux-only process metrics and filesystem path assumptions; run the full suite in the container with `docker build --target check .`.
 
-If Komari has been useful to you, consider buying me a coffee. Thank you for your support!
+## License
 
-| WeChat Pay                                                                                                   | TRON Network                                                                                |
-| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| ![WeChat Pay QR code](https://b2.akz.moe/awesome-pictures/%E5%BE%AE%E4%BF%A1%E8%B5%9E%E8%B5%8F%E7%A0%81.png) | ![TRON Network QR code](https://b2.akz.moe/awesome-pictures/PixPin_2026-08-07_15-16-52.png) |
+[MIT](LICENSE). The original Komari copyright and [NOTICE](NOTICE) are retained. Distributed packages and containers include third-party license texts. See [upstream maintenance](docs/upstream.md) for the fork's source history and synchronization policy.

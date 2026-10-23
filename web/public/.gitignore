@@ -1,2 +1,3 @@
-dist/*
-defaultTheme/*
+# The default connection page and metadata are source assets committed to Git.
+# Local build output from optional custom frontend development stays untracked.
+/dist/

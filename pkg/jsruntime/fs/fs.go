@@ -189,14 +189,22 @@ func (m *Module) resolveNodePathAt(name, cwd string, allowMissing bool, mode nod
 		return "", errors.New("path is empty")
 	}
 	resolved := filepath.FromSlash(name)
-	if !filepath.IsAbs(resolved) {
+	isAbsolute := filepath.IsAbs(resolved)
+	if !isAbsolute {
 		resolved = filepath.Join(cwd, resolved)
 	}
 	resolved = filepath.Clean(resolved)
 	if m.allowAllFileAccess || m.nodeRoot == "" {
 		return resolved, nil
 	}
-	if !m.withinAnyRoot(resolved) {
+	// Relative paths belong to the cwd's root. An explicit absolute path may
+	// select another authorized root, but neither traversal nor a symlink may
+	// change that selection during resolution.
+	root := m.confinedRootFor(resolved)
+	if !isAbsolute {
+		root = m.confinedRootFor(cwd)
+	}
+	if root == "" || !filepathutil.WithinBase(root, resolved) {
 		return "", fmt.Errorf("path escapes BaseDir: %s", name)
 	}
 	// No-follow operations on a confined root itself (for example
@@ -213,7 +221,7 @@ func (m *Module) resolveNodePathAt(name, cwd string, allowMissing bool, mode nod
 	}
 	actual, err := filepath.EvalSymlinks(pathToResolve)
 	if err == nil {
-		if !m.withinAnyRoot(actual) {
+		if !filepathutil.WithinBase(root, actual) {
 			return "", fmt.Errorf("path symlink escapes BaseDir: %s", name)
 		}
 		if mode == nodePathNoFollowFinal {
@@ -233,7 +241,7 @@ func (m *Module) resolveNodePathAt(name, cwd string, allowMissing bool, mode nod
 		parent = next
 		actualParent, parentErr := filepath.EvalSymlinks(parent)
 		if parentErr == nil {
-			if !m.withinAnyRoot(actualParent) {
+			if !filepathutil.WithinBase(root, actualParent) {
 				return "", fmt.Errorf("path parent symlink escapes BaseDir: %s", name)
 			}
 			return resolved, nil
@@ -242,6 +250,20 @@ func (m *Module) resolveNodePathAt(name, cwd string, allowMissing bool, mode nod
 			return "", parentErr
 		}
 	}
+}
+
+// confinedRootFor uses the same root precedence as filesystemFor, which owns
+// the os.Root handle used for the actual operation.
+func (m *Module) confinedRootFor(path string) string {
+	if filepathutil.WithinBase(m.nodeRoot, path) {
+		return m.nodeRoot
+	}
+	for _, extra := range m.extraRoots {
+		if filepathutil.WithinBase(extra.path, path) {
+			return extra.path
+		}
+	}
+	return ""
 }
 
 // isConfinedRoot reports whether path is exactly one of the confined roots
@@ -299,7 +321,7 @@ func (m *Module) Load(vm *goja.Runtime, module *goja.Object) {
 			panic(vm.NewGoError(err))
 		}
 		data := buffer.Bytes(vm, call.Argument(1))
-		if err := m.nodeWriteFile(path, data, fsMode(call.Argument(2), 0o666)); err != nil {
+		if err := m.nodeWriteFile(path, data, fsWriteOptionsMode(call.Argument(2))); err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return goja.Undefined()
@@ -309,7 +331,7 @@ func (m *Module) Load(vm *goja.Runtime, module *goja.Object) {
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
-		file, err := m.nodeOpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, fsMode(call.Argument(2), 0o666))
+		file, err := m.nodeOpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, fsWriteOptionsMode(call.Argument(2)))
 		if err == nil {
 			_, writeErr := file.Write(buffer.Bytes(vm, call.Argument(1)))
 			err = errors.Join(writeErr, file.Close())
@@ -689,6 +711,20 @@ func encodeFSData(vm *goja.Runtime, data []byte, encoding string) goja.Value {
 		return buffer.WrapBytes(vm, data)
 	}
 	return vm.ToValue(buffer.EncodeBytes(vm, data, vm.ToValue(encoding)))
+}
+
+// A string in writeFile/appendFile options specifies the encoding, not a file
+// mode. Explicit numeric and object modes (including zero) still use fsMode.
+func fsWriteOptionsMode(value goja.Value) os.FileMode {
+	if object, ok := value.(*goja.Object); ok {
+		return fsMode(object, 0o666)
+	}
+	if value != nil {
+		if _, encoding := value.Export().(string); encoding {
+			return 0o666
+		}
+	}
+	return fsMode(value, 0o666)
 }
 
 func fsMode(value goja.Value, fallback os.FileMode) os.FileMode {

@@ -117,33 +117,33 @@ func TestStorageDirIsConfinedAdditionalRoot(t *testing.T) {
 		fs.writeFileSync(path.join(__storageDir__, "saved.txt"), "hello", "utf8");
 		async function verify() {
 			if (await fs.promises.readFile(path.join(__storageDir__, "saved.txt"), "utf8") !== "hello") {
-				return "storage data not readable";
+				throw new Error("storage data not readable");
 			}
 			if (typeof __storageDir__ !== "string" || __storageDir__.length === 0) {
-				return "__storageDir__ missing";
+				throw new Error("__storageDir__ missing");
 			}
 			let wroteBase = false;
 			try { fs.writeFileSync("in-base.txt", "x"); wroteBase = true; } catch (error) {}
 			if (!wroteBase) {
-				return "BaseDir no longer writable";
+				throw new Error("BaseDir no longer writable");
 			}
 			let baseReachedStorage = false;
 			try { fs.readFileSync(path.join("..", path.basename(__storageDir__), "saved.txt"), "utf8"); }
 			catch (error) { baseReachedStorage = true; }
 			if (!baseReachedStorage) {
-				return "BaseDir reached the storage dir";
+				throw new Error("BaseDir reached the storage dir");
 			}
 			let escapedStorage = false;
 			try { fs.writeFileSync(path.join(__storageDir__, "..", "escaped.txt"), "x"); }
 			catch (error) { escapedStorage = true; }
 			if (!escapedStorage) {
-				return "escaped the storage dir";
+				throw new Error("escaped the storage dir");
 			}
 			let reachedOtherStorage = false;
 			try { fs.writeFileSync(path.join(__storageDir__, "..", "plugin-data-other", "x.txt"), "x"); }
 			catch (error) { reachedOtherStorage = true; }
 			if (!reachedOtherStorage) {
-				return "reached another plugin storage dir";
+				throw new Error("reached another plugin storage dir");
 			}
 			return true;
 		}

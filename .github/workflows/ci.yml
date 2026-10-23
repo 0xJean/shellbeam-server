@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [shellbeam]
+  pull_request:
+    branches: [shellbeam]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: true
+      - name: Test, vet, and build
+        env:
+          CGO_ENABLED: '1'
+        run: make check build notices
+      - name: Verify API, Agent, and authored entry-page compatibility
+        run: python3 scripts/compatibility-smoke.py --binary "$PWD/dist/shellbeam-server"
+      - name: Check the self-contained container build
+        run: docker build --build-arg VERSION_HASH="$(git rev-parse HEAD)" --tag shellbeam-server:ci .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shellbeam-server-ci-linux-amd64
+          path: dist/
+          retention-days: 7
+

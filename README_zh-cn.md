@@ -1,67 +1,61 @@
-# Komari
+# ShellBeam Server
 
-![Badge](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fkomari-monitor%2Fkomari&label=&icon=github&color=%23a370f7&message=&style=flat&tz=UTC)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/komari-monitor/komari)
+[English](README.md)
 
-![komari](https://socialify.git.ci/komari-monitor/komari/image?description=1&font=Inter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fkomari-monitor%2Fkomari-web%2Fd54ce1288df41ead08aa19f8700186e68028a889%2Fpublic%2Ffavicon.png&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
+ShellBeam Server 是 [ShellBeam](https://github.com/0xJean/shellbeam) 的自托管监控后端，由 ShellBeam 项目独立维护，基于 [Komari](https://github.com/komari-monitor/komari) fork。它不是 Komari 官方发行版。
 
-[English](./README.md) | [简体中文](./README_zh-cn.md)
+服务端保留 Komari API、Agent 探针协议、账户存储、监控历史和插件接口。前端由 ShellBeam 客户端提供；内嵌页面只介绍服务及客户端入口，不提供完整的 Web 管理后台。构建不下载或打包 `komari-web`。
 
-Komari 是一款轻量级的自托管服务器监控工具，旨在提供简单、高效的服务器性能监控解决方案。它支持通过 Web 界面查看服务器状态，并通过轻量级 Agent 收集数据。
+## 从源码运行
 
-> [!WARNING]
-> Komari 是一款自托管的监控/控制程序，仅应部署在你拥有或已获得授权管理的系统上。在未获授权的情况下部署、访问、持久化、执行命令及从事其他滥用行为，用户需要自行承担部署和使用 Komari 的责任。开发者不对未经授权或滥用行为及其后果承担责任。
+准备 Go 1.25 或更新版本和支持 CGO SQLite 的 C 编译器：
 
-[文档](https://www.komari.wiki/) | [Telegram 群](https://t.me/komari_monitor)
+```sh
+go build -o dist/shellbeam-server .
+./dist/shellbeam-server server --listen 127.0.0.1:25774
+```
 
-## 特性
+需要写入 ShellBeam 产品版本及当前提交标识时：
 
-- **实时监控**: 秒级实时数据展示。
-- **轻量高效**：低资源占用，适合各种规模的服务器。
-- **自托管**：完全掌控数据隐私，部署简单。
-- **Web 界面**：直观的监控仪表盘，易于使用。
-- **极强的可扩展性**: 支持自定义主题和插件。
+```sh
+make build
+./dist/shellbeam-server --version
+```
 
-## 快速开始
+主数据库默认路径仍为 `./data/komari.db`。新服务启动后，在 ShellBeam 客户端连接该地址，选择“初始化新服务”，设置首位管理员和服务器上的指标数据库路径，例如 `./data/metrics.db`。已初始化的服务使用管理员登录或现有 API 密钥接入。
 
-| 平台                                                                                                                                                                                                     | 介绍                                                                                                                                   |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| <a href="https://app.rainyun.com/apps/rca/store/6780/NzYxNzAz_"><img src="https://rainyun-apps.cn-nb1.rains3.com/materials/deploy-on-rainyun-cn.svg" alt="Rainyun" width="180"></a>                      | 秒级部署网站、数据库及数百款热门 App，并采用按小时灵活计费。[每月5元，立即部署](https://app.rainyun.com/apps/rca/store/6780/NzYxNzAz_) |
-| <a href="https://apps.fit2cloud.com/1panel/komari"><img src="https://raw.githubusercontent.com/komari-monitor/public/refs/heads/main/images/1panel-logo-blue.png" alt="1Panel Appstore" width="180"></a> | 现代化、开源的Linux 服务器运维管理面板，提供网站、数据库、容器、文件、备份、安全与AI 管理能力，支持应用商店一键部署。                  |
+## 使用 Docker
 
-Docker、二进制文件、源码构建和更新说明，请参阅 [安装指南](https://www.komari.wiki/install/quick-start).
+```sh
+docker build -t shellbeam-server:local .
+docker compose up -d --build
+```
 
-## 截图
+Compose 示例在本地构建镜像，将 `/app/data` 保存到命名卷，并把 `25774` 端口绑定到宿主机回环地址。为远程客户端和 Agent 配置 HTTPS 反向代理，或按需修改宿主机端口绑定。初始化容器时使用 `/app/data/metrics.db`，确保指标也写入持久卷。容器以 UID/GID `10001` 运行；使用宿主机目录挂载时，该账户需要写权限。
 
-| 页面         | 截图                                                                                                                                                         |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 主页仪表盘   | <img src="https://b2.akz.moe/awesome-pictures/komari-screenshot/%E4%B8%BB%E9%A1%B5%E4%BB%AA%E8%A1%A8%E7%9B%98.webp" width="800" alt="主页仪表盘">            |
-| 后台仪表盘   | <img src="https://b2.akz.moe/awesome-pictures/komari-screenshot/%E5%90%8E%E5%8F%B0%E4%BB%AA%E8%A1%A8%E7%9B%98.webp" width="800" alt="后台仪表盘">            |
-| 历史图表     | <img src="https://b2.akz.moe/awesome-pictures/komari-screenshot/%E5%8E%86%E5%8F%B2%E5%9B%BE%E8%A1%A8.webp" width="800" alt="历史图表">                       |
-| 网页终端     | <img src="https://b2.akz.moe/awesome-pictures/komari-screenshot/%E7%BD%91%E9%A1%B5%E7%BB%88%E7%AB%AF.webp" width="800" alt="网页终端">                       |
-| 主题可自定义 | <img src="https://b2.akz.moe/awesome-pictures/komari-screenshot/%E4%B8%BB%E9%A2%98%E5%8F%AF%E8%87%AA%E5%AE%9A%E4%B9%89.webp" width="800" alt="主题可自定义"> |
-| 主题市场     | <img src="https://b2.akz.moe/awesome-pictures/komari-screenshot/%E4%B8%BB%E9%A2%98%E5%B8%82%E5%9C%BA.webp" width="800" alt="主题市场">                       |
+从 Git checkout 构建会自动记录真实提交。没有 `.git` 的源码归档需要传入 `--build-arg VERSION_HASH=<commit>`。
 
-## 赞助商
+## 兼容性和运维
 
-有意赞助 Komari？请通过 [电子邮箱](mailto:komari@akz.moe) 或 [Telegram](https://t.me/mamomoe) 联系开发者。
+- ShellBeam 产品版本与 Komari API 兼容版本分别管理。`/api/version` 保留 `version: "1.6.0"`；构建参数只覆盖 `utils.ServerVersion` 和 `utils.VersionHash`。
+- 保持既有 Komari Agent 可用。服务端发行流程不安装、改名或升级 Agent。
+- 保留 `KOMARI_LISTEN` 和原有数据库参数。`SHELLBEAM_LISTEN` 是品牌别名；显式 `--listen` 优先。
+- 迁移已有数据时，先使用离线备份，在相同路径下验证。旧数据库可能需要保留的迁移或恢复 API；服务入口页不执行这些操作。
 
-| 赞助商                                                                                                                                                                                           | 描述                                                                                                                                                                                                                |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a href="https://axisnow.io/zh?utm=komari"><img src="https://raw.githubusercontent.com/komari-monitor/public/refs/heads/main/images/AxisNow.jpg" alt="AxisNow" width="180"></a> | [自建私有部署CDN \| 订阅式高仿CDN \| 自主可控、灵活组合的CDN网络](https://axisnow.io/zh?utm=komari) |
-| <a href="https://whmcs.as211392.com/aff.php?aff=110"><img src="https://raw.githubusercontent.com/komari-monitor/public/refs/heads/main/images/dreamcloud.png" alt="Dream Cloud" width="180"></a> | 极高性价比解锁直连亚太高防，真高防，不虚标，打死退款                                                                                                                                                                |
-| <a href="https://sharon.io"><img src="https://raw.githubusercontent.com/komari-monitor/public/refs/heads/main/images/sharon-networks.webp" alt="Sharon Networks" width="180"></a>                | 亚太数据中心提供顶级的中国优化网络接入 · 低延时&高带宽&提供Tbps级本地清洗高防服务, 为您的业务保驾护航, 为您的客户提供极致体验. 加入社区 [Telegram群组](https://t.me/SharonNetwork) 可参与公益募捐或群内抽奖免费使用 |
+初始化、鉴权、持久化、迁移和恢复边界见[运维说明](docs/shellbeam-server.md)。精确上游基线和归属见 [UPSTREAM.md](UPSTREAM.md)。
 
-## 贡献者
+## 开发和发行
 
-感谢所有为 Komari 贡献代码、主题、插件、文档、翻译、问题报告或反馈的朋友。
+```sh
+make check       # go test ./... 和 go vet ./...
+make build       # 构建 dist/shellbeam-server，写入产品版本和提交
+make notices     # 收集第三方许可证，需要 Python 3
+```
 
-<a href="https://github.com/komari-monitor/komari/graphs/contributors"><img src="https://contributors-img.web.app/image?repo=komari-monitor/komari" alt="Komari 贡献者" width="600"></a>
+CI 运行测试、vet、二进制构建与本地容器构建检查。独立发行工作流支持手动触发及 `v*` 版本标签，使用 Go 1.25 和 Debian Bookworm 构建 Linux amd64/arm64 制品，附带校验和、MIT 许可证、上游 NOTICE 和依赖许可证。标签构建创建 GitHub Release 草稿；手动构建仅在明确勾选发布时创建草稿。工作流不部署服务，不推送容器镜像。
 
-## 支持项目
+完整测试和发行目标平台为 Linux。上游 JavaScript 运行时测试包含 Linux 进程指标及文件系统路径假设，在 macOS 上请用 `docker build --target check .` 验证完整测试集。
 
-如果 Komari 对你有所帮助，欢迎请作者喝一杯奶茶。感谢你的支持！
+## 许可证
 
-| 微信赞赏码                                                                                       | TRON Network                                                                |
-| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| ![wechat](https://b2.akz.moe/awesome-pictures/%E5%BE%AE%E4%BF%A1%E8%B5%9E%E8%B5%8F%E7%A0%81.png) | ![TRON](https://b2.akz.moe/awesome-pictures/PixPin_2026-08-07_15-16-52.png) |
+采用 [MIT](LICENSE)，保留 Komari 原作者版权及 [NOTICE](NOTICE)。发行包及容器包含第三方许可文本。上游历史和同步约定见[维护说明](docs/upstream.md)。
