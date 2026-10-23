@@ -304,6 +304,8 @@ class Smoke:
         return points if all(value in values for value in expected) else None
 
     def legacy_history(self, node_id, auth):
+        # A one-hour query selects the minute tier. Wider windows can select a
+        # coarse tier whose first bucket has not closed in a new installation.
         data = self.successful("/api/records/load?uuid=" + quote(node_id, safe="")
                                + "&load_type=all&hours=1", headers=auth)
         require(isinstance(data, dict) and isinstance(data.get("records"), list))
@@ -413,7 +415,7 @@ class Smoke:
         self.stage = "raw-and-legacy-history-before-restart"
         self.wait_for(lambda: self.raw_samples(node_id, auth, (10, 25, 40)))
         self.passed("fresh-raw-cpu-history")
-        self.wait_for(lambda: self.legacy_history(node_id, auth))
+        original_history = self.wait_for(lambda: self.legacy_history(node_id, auth))
         self.passed("legacy-load-history-api")
 
         self.stage = "unauthorized-admin-and-agent-rejection"
@@ -446,11 +448,22 @@ class Smoke:
         self.passed("restart-legacy-and-product-version-persistence")
 
         self.stage = "restart-metric-history-persistence"
-        self.wait_for(lambda: self.raw_samples(node_id, auth, (10, 25, 40)))
-        self.wait_for(lambda: self.legacy_history(node_id, auth))
-        self.passed("restart-raw-and-legacy-history-persistence")
+        # Komari intentionally keeps exact raw samples only in memory. Durable
+        # minute aggregates survive restart; replacing the missing raw samples
+        # with aggregates would misrepresent the protocol's freshness contract.
+        require(self.raw_samples(node_id, auth, ()) == [])
+        self.passed("restart-exact-raw-window-empty-by-design")
+        restored_history = self.wait_for(lambda: self.legacy_history(node_id, auth))
+        history_identity = lambda records: sorted(
+            (record.get("client"), record.get("time"), record.get("cpu"))
+            for record in records
+        )
+        require(history_identity(restored_history) == history_identity(original_history))
+        self.passed("restart-legacy-history-persistence")
         self.agent_http(agent_token, 35)
+        self.wait_for(lambda: self.raw_samples(node_id, auth, (35,)))
         self.passed("restart-existing-agent-token-accepted")
+        self.passed("restart-new-raw-samples-readable")
 
 
 def main():
@@ -502,6 +515,8 @@ def main():
             try:
                 temp.cleanup()
                 cleanup["temporary_state_removed"] = not root.exists()
+                if not cleanup["temporary_state_removed"]:
+                    failure = failure or {"stage": "cleanup-directory", "type": "OSError"}
             except OSError as error:
                 failure = failure or {"stage": "cleanup-directory", "type": type(error).__name__}
         else:
