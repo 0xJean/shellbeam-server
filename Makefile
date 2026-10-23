@@ -20,6 +20,7 @@ notices:
 	$(GO) mod download all
 	rm -rf "$(DIST)/THIRD_PARTY_NOTICES"
 	$(PYTHON) .github/scripts/collect-notices.py --output "$(DIST)/THIRD_PARTY_NOTICES"
+	cp LICENSE NOTICE UPSTREAM.md "$(DIST)/"
 
 clean:
 	rm -rf "$(DIST)"
