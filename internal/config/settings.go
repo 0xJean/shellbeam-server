@@ -3,20 +3,20 @@ package config
 import "time"
 
 type Settings struct {
-	ID                     uint   `json:"id,omitempty"`                                        // 1
-	Sitename               string `json:"sitename" default:"Komari"`                           // 站点名称，默认 "Komari"
-	Description            string `json:"description" default:"A simple server monitor tool."` // 站点描述
-	CorsOriginCheckEnabled bool   `json:"cors_origin_check_enabled" default:"true"`            // 是否启用 API CORS 跨域请求校验，默认 true
-	CorsAllowedOrigins     string `json:"cors_allowed_origins" default:""`                     // API 跨域允许列表
-	WsOriginCheckEnabled   bool   `json:"ws_origin_check_enabled" default:"true"`              // 是否校验 WebSocket Origin
-	WsAllowedOrigins       string `json:"ws_allowed_origins" default:""`                       // WebSocket Origin 允许列表
-	Theme                  string `json:"theme" default:"default"`                             // 主题名称，默认 'default'
-	PrivateSite            bool   `json:"private_site" default:"false"`                        // 是否为私有站点，默认 false
-	ApiKey                 string `json:"api_key" default:""`                                  // API 密钥，默认空字符串
-	AutoDiscoveryKey       string `json:"auto_discovery_key" default:""`                       // 自动发现密钥
-	ScriptDomain           string `json:"script_domain" default:""`                            // 自定义脚本域名
-	SendIpAddrToGuest      bool   `json:"send_ip_addr_to_guest" default:"false"`               // 是否向访客页面发送 IP 地址，默认 false
-	SSRFProtectionEnabled  bool   `json:"ssrf_protection_enabled" default:"false"`             // 是否启用 SSRF 防护，默认关闭
+	ID                     uint   `json:"id,omitempty"`                        // 1
+	Sitename               string `json:"sitename" default:"ShellBeam Server"` // Default for new installations; saved values are preserved.
+	Description            string `json:"description" default:"Self-hosted monitoring for ShellBeam."`
+	CorsOriginCheckEnabled bool   `json:"cors_origin_check_enabled" default:"true"` // 是否启用 API CORS 跨域请求校验，默认 true
+	CorsAllowedOrigins     string `json:"cors_allowed_origins" default:""`          // API 跨域允许列表
+	WsOriginCheckEnabled   bool   `json:"ws_origin_check_enabled" default:"true"`   // 是否校验 WebSocket Origin
+	WsAllowedOrigins       string `json:"ws_allowed_origins" default:""`            // WebSocket Origin 允许列表
+	Theme                  string `json:"theme" default:"default"`                  // 主题名称，默认 'default'
+	PrivateSite            bool   `json:"private_site" default:"false"`             // 是否为私有站点，默认 false
+	ApiKey                 string `json:"api_key" default:""`                       // API 密钥，默认空字符串
+	AutoDiscoveryKey       string `json:"auto_discovery_key" default:""`            // 自动发现密钥
+	ScriptDomain           string `json:"script_domain" default:""`                 // 自定义脚本域名
+	SendIpAddrToGuest      bool   `json:"send_ip_addr_to_guest" default:"false"`    // 是否向访客页面发送 IP 地址，默认 false
+	SSRFProtectionEnabled  bool   `json:"ssrf_protection_enabled" default:"false"`  // 是否启用 SSRF 防护，默认关闭
 	EulaAccepted           bool   `json:"eula_accepted" default:"false"`
 	BaseScriptsURLKey      string `json:"base_scripts_url" default:""`
 	// GeoIP 配置

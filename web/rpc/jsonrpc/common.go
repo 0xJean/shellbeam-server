@@ -469,13 +469,7 @@ func getMe(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) 
 }
 
 func getVersion(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
-	return struct {
-		Version string `json:"version"`
-		Hash    string `json:"hash"`
-	}{
-		Version: utils.CurrentVersion,
-		Hash:    utils.VersionHash,
-	}, nil
+	return utils.GetVersionInfo(), nil
 }
 
 func getNodeRecentStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {

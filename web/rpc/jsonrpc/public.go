@@ -80,10 +80,7 @@ func publicGetPublicSettings(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *
 }
 
 func publicGetVersion(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
-	return map[string]any{
-		"version": utils.CurrentVersion,
-		"hash":    utils.VersionHash,
-	}, nil
+	return utils.GetVersionInfo(), nil
 }
 
 // publicGetMe 返回当前用户信息；未登录时返回 Guest 占位，保持原 /api/me 的扁平形状。

@@ -15,11 +15,8 @@ import (
 	"github.com/komari-monitor/komari/internal/config"
 )
 
-//go:embed defaultTheme/komari-theme.json
+//go:embed defaultTheme/komari-theme.json defaultTheme/dist
 var PublicFS embed.FS
-
-//go:embed defaultTheme/dist.tar.zst
-var embeddedDistArchive []byte
 
 // 常量定义
 const (
@@ -134,10 +131,10 @@ func static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc), force
 
 	getConfig := func() map[string]any {
 		cfg, _ := config.GetMany(map[string]any{
-			config.DescriptionKey: "A simple server monitor tool.",
+			config.DescriptionKey: "The server for your ShellBeam clients.",
 			config.CustomHeadKey:  "",
 			config.CustomBodyKey:  "",
-			config.SitenameKey:    "Komari Monitor",
+			config.SitenameKey:    "ShellBeam Server",
 			config.ThemeKey:       DefaultTheme,
 		})
 		return cfg
@@ -181,12 +178,7 @@ func static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc), force
 			return nil, "", false
 		}
 
-		if strings.HasPrefix(embedPath, DistDir+"/") {
-			content, err := os.ReadFile(filepath.Join(defaultDistCacheDir, filepath.FromSlash(strings.TrimPrefix(embedPath, DistDir+"/"))))
-			if err == nil {
-				return content, mime.TypeByExtension(filepath.Ext(embedPath)), true
-			}
-		} else if content, err := fs.ReadFile(defaultThemeFS, embedPath); err == nil {
+		if content, err := fs.ReadFile(defaultThemeFS, embedPath); err == nil {
 			return content, mime.TypeByExtension(filepath.Ext(embedPath)), true
 		}
 
@@ -232,7 +224,9 @@ func static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc), force
 
 		// 执行 HTML 内容替换
 		replacer := strings.NewReplacer(
+			"<title>ShellBeam Server</title>", "<title>"+cfg[config.SitenameKey].(string)+"</title>",
 			"<title>Komari Monitor</title>", "<title>"+cfg[config.SitenameKey].(string)+"</title>",
+			"The server for your ShellBeam clients.", cfg[config.DescriptionKey].(string),
 			"A simple server monitor tool.", cfg[config.DescriptionKey].(string),
 			"</head>", cfg[config.CustomHeadKey].(string)+"</head>",
 			"</body>", cfg[config.CustomBodyKey].(string)+"</body>",
@@ -262,6 +256,10 @@ func static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc), force
 			currentTheme = DefaultTheme
 		}
 		content, mimeType, exists := getFileContent(currentTheme, themeFaviconPath)
+		if !exists {
+			// Keep the legacy favicon URL usable with the bundled SVG icon.
+			content, mimeType, exists = getFileContent(currentTheme, path.Join(DistDir, "favicon.svg"))
+		}
 		if exists {
 			c.Data(http.StatusOK, mimeType, content)
 			return

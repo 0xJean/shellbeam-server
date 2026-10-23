@@ -1,0 +1,15 @@
+{
+  "name": "ShellBeam Server",
+  "short": "default",
+  "description": "A small connection page for the ShellBeam client. Server APIs and agent protocols remain compatible with Komari.",
+  "version": "1.0.0",
+  "author": "ShellBeam contributors",
+  "url": "",
+  "preview": "",
+  "configuration": {
+    "type": "managed",
+    "name": "ShellBeam connection page",
+    "icon": "",
+    "data": []
+  }
+}

@@ -9,13 +9,13 @@ import (
 )
 
 var (
-	TwoFactorIssuer = "Komari Monitor"
+	TwoFactorIssuer = "ShellBeam Server"
 )
 
 func Generate2Fa() (string, image.Image, error) {
 	otp, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      TwoFactorIssuer,
-		AccountName: "komari",
+		AccountName: "shellbeam",
 	})
 	if err != nil {
 		return "", nil, err

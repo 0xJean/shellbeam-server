@@ -25,3 +25,10 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+ShellBeam Server
+This product is derived from komari-monitor/komari 1.6.0
+(commit 1b76b7ad5bc3de6529bb7f0577069b4ac241fec3), licensed under MIT.
+Upstream: https://github.com/komari-monitor/komari
+Fork: https://github.com/0xJean/shellbeam-server
+ShellBeam Server is maintained independently from the Komari project.

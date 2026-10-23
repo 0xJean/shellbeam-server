@@ -1,0 +1,16 @@
+services:
+  shellbeam-server:
+    build:
+      context: .
+    image: shellbeam-server:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:25774:25774"
+    environment:
+      KOMARI_LISTEN: "0.0.0.0:25774"
+    volumes:
+      - shellbeam-data:/app/data
+
+volumes:
+  shellbeam-data:
+

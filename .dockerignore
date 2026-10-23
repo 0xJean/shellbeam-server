@@ -1,0 +1,22 @@
+# Keep .git so ordinary local builds can embed the actual fork commit.
+# Only the binary and legal documents are copied into the final image.
+dist
+data
+backup
+cache
+.env
+.env.*
+.codex
+.vscode
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.test
+*.out
+shellbeam-server
+komari
+utils/geoip/data
+web/filemanager/data
+

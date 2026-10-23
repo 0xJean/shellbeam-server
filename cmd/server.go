@@ -23,9 +23,13 @@ var ServerCmd = &cobra.Command{
 
 func init() {
 	// 从环境变量获取监听地址
-	listenAddr := GetEnv("KOMARI_LISTEN", "0.0.0.0:25774")
-	ServerCmd.PersistentFlags().StringVarP(&flags.Listen, "listen", "l", listenAddr, "监听地址 [env: KOMARI_LISTEN]")
+	listenAddr := defaultListenAddr()
+	ServerCmd.PersistentFlags().StringVarP(&flags.Listen, "listen", "l", listenAddr, "Listen address [env: SHELLBEAM_LISTEN, fallback: KOMARI_LISTEN]")
 	RootCmd.AddCommand(ServerCmd)
+}
+
+func defaultListenAddr() string {
+	return GetEnv("SHELLBEAM_LISTEN", GetEnv("KOMARI_LISTEN", "0.0.0.0:25774"))
 }
 
 // RunServer 按显式的生命周期阶段启动服务端。

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The server for your ShellBeam clients.">
+    <meta name="color-scheme" content="light dark">
+    <title>ShellBeam Server</title>
+    <link rel="icon" type="image/svg+xml" href="/themes/default/dist/favicon.svg">
+    <link rel="stylesheet" href="/themes/default/dist/style.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <span class="mark" aria-hidden="true">&gt;_</span>
+        <span>ShellBeam <span class="muted">/ Server</span></span>
+      </header>
+      <section aria-labelledby="page-title">
+        <p class="eyebrow">Your server. Your workspace.</p>
+        <h1 id="page-title">Connect with<br>ShellBeam.</h1>
+        <p class="lead">This is the ShellBeam Server endpoint. Use the ShellBeam client to view your servers and manage this instance.</p>
+        <div class="connection">
+          <h2>Server address</h2>
+          <code id="server-address">Use this page's scheme, host and port.</code>
+          <p>Open ShellBeam, add a server, and enter this base URL with your server credentials.</p>
+        </div>
+        <aside>
+          <h2>Setting up or recovering this server?</h2>
+          <p>This page is connection information only. If the server is waiting for installation, database migration, or recovery, follow its startup logs and use the corresponding setup APIs before connecting. Seeing this page does not confirm that setup is complete.</p>
+        </aside>
+      </section>
+      <footer>ShellBeam Server <span aria-hidden="true">&middot;</span> Komari-compatible APIs and agent protocol</footer>
+    </main>
+    <script>
+      document.getElementById("server-address").textContent = window.location.origin;
+    </script>
+  </body>
+</html>
