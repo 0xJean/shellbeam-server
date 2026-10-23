@@ -54,6 +54,8 @@ make notices     # third-party license texts; requires Python 3
 
 CI tests, vets, builds, and checks a local container image. The release workflow can build manually or from a `v*` version tag. It packages Linux amd64/arm64 binaries compiled with Go 1.25 on Debian Bookworm, checksums, MIT license, upstream NOTICE, and dependency license texts. Tag builds create a draft GitHub release; manual builds publish a draft only when requested. No workflow deploys a service or pushes container images.
 
+Linux is the release and full-test target. On macOS, inherited JavaScript runtime tests include Linux-only process metrics and filesystem path assumptions; run the full suite in the container with `docker build --target check .`.
+
 ## License
 
 [MIT](LICENSE). The original Komari copyright and [NOTICE](NOTICE) are retained. Distributed packages and containers include third-party license texts. See [upstream maintenance](docs/upstream.md) for the fork's source history and synchronization policy.

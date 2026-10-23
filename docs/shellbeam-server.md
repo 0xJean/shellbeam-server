@@ -49,6 +49,17 @@ Use a compatible client or administrative API tooling against the existing authe
 
 ## Version and Agent compatibility
 
+The existing `/api/version` success envelope has these `data` fields. Clients can keep their existing compatibility checks and use the added fields for product identification:
+
+| Field | Meaning |
+| --- | --- |
+| `version` | Komari compatibility level, `1.6.0` |
+| `hash` | Actual ShellBeam checkout commit, or `unknown` for a plain development build |
+| `product` | `ShellBeam Server` |
+| `product_version` | ShellBeam release version, initially `0.1.0-dev` |
+| `upstream_version` | Pinned upstream release, `1.6.0` |
+| `upstream_commit` | `1b76b7ad5bc3de6529bb7f0577069b4ac241fec3` |
+
 The legacy `/api/version` `version` field remains the Komari API compatibility version `1.6.0`. ShellBeam Server has a separate product release version. Build tooling only injects the product version and actual fork commit; it does not replace the API compatibility value with a product release tag.
 
 Existing Agent binaries continue using the original HTTP/WebSocket/RPC paths, token formats, and report shapes. This repository builds the server, not Agent executables. Keep Agent installation, signing, update, and rollback policy in the existing ShellBeam Agent distribution workflow.
@@ -56,6 +67,8 @@ Existing Agent binaries continue using the original HTTP/WebSocket/RPC paths, to
 Plugin APIs and manifest compatibility remain part of the backend contract. The client currently checks an exact compatible upstream version for its managed load-alert extension. When updating upstream, validate the client and plugin together before changing the compatibility field.
 
 ## Build checks and distribution
+
+The full runtime test target is Linux. On macOS, the inherited suite includes Linux-only process metrics and `/var` versus `/private/var` path assumptions. A successful native build alone is not evidence that all runtime tests passed; use the container `check` stage for the full suite.
 
 `make check` runs `go test ./...` and `go vet ./...`; `make build` creates the binary. The compatibility smoke accepts an absolute executable path:
 

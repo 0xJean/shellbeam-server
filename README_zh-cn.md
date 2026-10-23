@@ -54,6 +54,8 @@ make notices     # 收集第三方许可证，需要 Python 3
 
 CI 运行测试、vet、二进制构建与本地容器构建检查。独立发行工作流支持手动触发及 `v*` 版本标签，使用 Go 1.25 和 Debian Bookworm 构建 Linux amd64/arm64 制品，附带校验和、MIT 许可证、上游 NOTICE 和依赖许可证。标签构建创建 GitHub Release 草稿；手动构建仅在明确勾选发布时创建草稿。工作流不部署服务，不推送容器镜像。
 
+完整测试和发行目标平台为 Linux。上游 JavaScript 运行时测试包含 Linux 进程指标及文件系统路径假设，在 macOS 上请用 `docker build --target check .` 验证完整测试集。
+
 ## 许可证
 
 采用 [MIT](LICENSE)，保留 Komari 原作者版权及 [NOTICE](NOTICE)。发行包及容器包含第三方许可文本。上游历史和同步约定见[维护说明](docs/upstream.md)。
