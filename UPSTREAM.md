@@ -18,6 +18,8 @@ The Go module path remains `github.com/komari-monitor/komari` to keep upstream i
 
 ShellBeam changes replace product-facing identity and the bundled frontend, add separate product version metadata, and supply independent build/release/container configuration. Komari API names, JSON fields, Agent endpoints, old environment variables, and database names are deliberately retained for compatibility.
 
+The fork also fixes two inherited JavaScript filesystem issues: encoding strings in write/append options no longer create mode-000 files, and relative/symlink resolution stays within the initially selected authorized root. Explicit file modes and `os.Root` access checks remain in effect. Regression tests exercise real readback, file permissions, and denied cross-root operations.
+
 The official `komari-web` frontend and upstream installation script are not part of this distribution. The minimal service entry page is authored for this fork. Upstream README files remain available in the original Git history and at the pinned source commit; see [upstream maintenance](docs/upstream.md).
 
 Redistribution must include `LICENSE`, `NOTICE`, and the relevant third-party license texts. Build/release tooling collects dependency license and attribution files from the pinned Go module graph into `THIRD_PARTY_NOTICES/` without changing the original legal texts.

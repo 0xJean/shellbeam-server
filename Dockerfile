@@ -7,7 +7,7 @@ COPY go.mod go.sum ./
 RUN go mod download all
 COPY . .
 ARG SERVER_VERSION=0.1.0-dev
-ARG VERSION_HASH
+ARG VERSION_HASH=""
 ENV CGO_ENABLED=1
 RUN set -eu; \
     if [ -z "$VERSION_HASH" ]; then VERSION_HASH="$(git rev-parse HEAD)"; fi; \
