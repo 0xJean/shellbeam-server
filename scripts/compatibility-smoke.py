@@ -320,6 +320,15 @@ class Smoke:
         self.wait_for(lambda: self.successful("/api/install/status").get("required") is True)
         self.passed("first-run-install-status")
 
+        self.stage = "first-run-public-identity-before-credentials"
+        first_run_version = self.version()
+        status, headers, _ = self.request("/api/version")
+        require(status == 200 and headers.get("Cache-Control") == "no-store")
+        for path in ("/api/me", "/api/admin/client/list", "/api/admin/settings/"):
+            require(self.request(path)[0] == 404)
+        require(self.successful("/api/install/status").get("required") is True)
+        self.passed("first-run-public-identity-and-guide-route-isolation")
+
         username = "smoke-" + secrets.token_hex(8)
         password = "Sb1" + secrets.token_hex(24)
         api_key = secrets.token_hex(32)
@@ -330,7 +339,11 @@ class Smoke:
             "description": "Synthetic local-only compatibility check",
             "metric_dsn": str(self.root / "metrics.db"),
         })
+        # Version identity is public in both guide and normal modes; its
+        # availability alone no longer proves normal routes are ready.
+        self.wait_for(lambda: self.request("/api/me")[0] == 200)
         initial_version = self.wait_for(self.version)
+        require(initial_version == first_run_version)
         self.passed("first-run-install-complete")
         self.passed("legacy-version-and-product-metadata")
 

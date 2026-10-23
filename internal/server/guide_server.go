@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/komari-monitor/komari/utils"
 	logger "github.com/komari-monitor/komari/utils/log"
 	"github.com/komari-monitor/komari/web/api"
 	frontendpublic "github.com/komari-monitor/komari/web/public"
@@ -40,21 +42,7 @@ func (a *App) runGuideServer(controller guideController, cfg guideServerConfig) 
 	controller.Activate()
 	defer controller.Deactivate()
 
-	r := gin.New()
-	r.Use(logger.GinLogger(), logger.GinRecovery(), noStoreAPIResponses())
-	if cfg.requireIdentity {
-		cors := security.NewCorsController(a.settings.CorsOriginCheckEnabled, a.settings.CorsAllowedOrigins)
-		r.Use(cors.Middleware(), api.IdentityMiddleware())
-	}
-	controller.Register(r)
-
-	serveStatic := frontendpublic.Static
-	if cfg.restrictedStatic {
-		serveStatic = frontendpublic.StaticRestricted
-	}
-	serveStatic(r.Group("/"), func(handlers ...gin.HandlerFunc) {
-		r.NoRoute(guideNoRoute(cfg.pagePath, cfg.missingAPI, handlers))
-	})
+	r := a.newGuideEngine(controller, cfg)
 
 	server := &http.Server{Addr: a.listenAddr, Handler: r}
 	a.engine = r
@@ -62,7 +50,7 @@ func (a *App) runGuideServer(controller guideController, cfg guideServerConfig) 
 	serverErr := make(chan error, 1)
 	logger.Infof("server", cfg.logMessage, a.listenAddr)
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErr <- err
 		}
 	}()
@@ -86,6 +74,31 @@ func (a *App) runGuideServer(controller guideController, cfg guideServerConfig) 
 		a.engine = nil
 		return true, nil
 	}
+}
+
+func (a *App) newGuideEngine(controller guideController, cfg guideServerConfig) *gin.Engine {
+	r := gin.New()
+	r.Use(logger.GinLogger(), logger.GinRecovery(), noStoreAPIResponses())
+	if cfg.requireIdentity {
+		cors := security.NewCorsController(a.settings.CorsOriginCheckEnabled, a.settings.CorsAllowedOrigins)
+		r.Use(cors.Middleware(), api.IdentityMiddleware())
+	}
+	// Clients must identify the distribution before sending first-run
+	// credentials. This is the normal server's public metadata without
+	// mounting its authentication or application routes.
+	r.GET("/api/version", func(c *gin.Context) {
+		api.RespondSuccess(c, utils.GetVersionInfo())
+	})
+	controller.Register(r)
+
+	serveStatic := frontendpublic.Static
+	if cfg.restrictedStatic {
+		serveStatic = frontendpublic.StaticRestricted
+	}
+	serveStatic(r.Group("/"), func(handlers ...gin.HandlerFunc) {
+		r.NoRoute(guideNoRoute(cfg.pagePath, cfg.missingAPI, handlers))
+	})
+	return r
 }
 
 func noStoreAPIResponses() gin.HandlerFunc {
