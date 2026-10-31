@@ -27,6 +27,12 @@ func init() {
 	reg("fileChmod", adminFileChmod, "Change file permissions on an agent")
 	reg("fileChown", adminFileChown, "Change file ownership on a Unix agent")
 	reg("fileSearch", adminFileSearch, "Search paths or file contents on an agent")
+	for _, name := range []string{
+		"fileList", "fileListRoots", "fileStat", "fileMkdir", "fileDelete", "fileMove",
+		"fileCopy", "fileChmod", "fileChown", "fileSearch",
+	} {
+		rpc.MarkSensitive("admin:" + name)
+	}
 }
 
 type filePathParams struct {

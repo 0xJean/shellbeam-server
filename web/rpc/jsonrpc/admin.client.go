@@ -66,6 +66,7 @@ func init() {
 		Summary: "Delete all load records",
 		Returns: "null",
 	})
+	rpc.MarkSensitive("admin:getClientToken")
 }
 
 // auditActor 从上下文提取审计用的 actor UUID 与来源 IP。

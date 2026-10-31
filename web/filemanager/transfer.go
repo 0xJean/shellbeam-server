@@ -158,6 +158,12 @@ func Upload(c *gin.Context) {
 	}
 	switch operation {
 	case "init":
+		// Later operations are bound to the session this creates, and one TOTP
+		// code would not outlast a long transfer, so only init asks for 2FA.
+		if err := api.VerifySensitive2FA(c); err != nil {
+			api.RespondError(c, http.StatusUnauthorized, err.Error())
+			return
+		}
 		initRemoteUpload(c, clientUUID)
 	case "chunk":
 		uploadRemoteChunk(c, clientUUID)

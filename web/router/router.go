@@ -94,7 +94,9 @@ func registerAdminRoutes(r *gin.Engine) {
 	uploadHandler := admin.NewArchiveUploadHandler()
 	uploadGroup := g.Group("/upload")
 	{
-		uploadGroup.POST("/init", uploadHandler.Init)
+		// Chunks are bound to the upload id from init, and one TOTP code would
+		// not outlast a long transfer, so only init asks for 2FA.
+		uploadGroup.POST("/init", api.RequireSensitive2FA(), uploadHandler.Init)
 		uploadGroup.POST("/chunk", uploadHandler.Chunk)
 		uploadGroup.POST("/merge", uploadHandler.Merge)
 		uploadGroup.POST("/cancel", uploadHandler.Cancel)
@@ -184,7 +186,7 @@ func registerAdminRoutes(r *gin.Engine) {
 		clientGroup.POST("/:uuid/file/upload", filemanager.Upload)
 		clientGroup.GET("/:uuid/file/download", filemanager.Download)
 		clientGroup.HEAD("/:uuid/file/download", filemanager.Download)
-		clientGroup.GET("/:uuid/file/preview-token", filemanager.CreatePreviewToken)
+		clientGroup.GET("/:uuid/file/preview-token", api.RequireSensitive2FA(), filemanager.CreatePreviewToken)
 	}
 
 	// records
@@ -215,7 +217,7 @@ func registerAdminRoutes(r *gin.Engine) {
 		pluginGroup.PUT("/market/sources/:id", admin.UpdatePluginMarketSource)
 		pluginGroup.DELETE("/market/sources/:id", admin.DeletePluginMarketSource)
 		pluginGroup.GET("/market/catalog", admin.ListPluginMarketCatalog)
-		pluginGroup.POST("/market/install", admin.InstallPluginFromMarket)
+		pluginGroup.POST("/market/install", api.RequireSensitive2FA(), admin.InstallPluginFromMarket)
 		pluginGroup.POST("/delete", jsonRpc.Bind("admin:deletePlugin"))
 		pluginGroup.GET("/configuration", jsonRpc.Bind("admin:getPluginConfiguration", jsonRpc.WithQuery("short")))
 		pluginGroup.POST("/configuration", jsonRpc.Bind("admin:setPluginConfiguration"))
