@@ -4,7 +4,7 @@ ShellBeam Server supplies the backend. The embedded HTML page provides service i
 
 ## Build and startup
 
-Use Go 1.25 or later with CGO enabled and a C compiler. `go build -o dist/shellbeam-server .` builds directly; Node.js, a frontend repository, and downloaded Web assets are not required. `make build` adds the ShellBeam product version and Git commit using linker flags. Set `SERVER_VERSION` and `VERSION_HASH` explicitly for a build from a source archive.
+Use Go 1.26 or later with CGO enabled and a C compiler. `go build -o dist/shellbeam-server .` builds directly; Node.js, a frontend repository, and downloaded Web assets are not required. `make build` adds the ShellBeam product version and Git commit using linker flags. Set `SERVER_VERSION` and `VERSION_HASH` explicitly for a build from a source archive.
 
 ```sh
 make build SERVER_VERSION=0.1.0-dev

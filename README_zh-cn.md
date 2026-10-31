@@ -8,7 +8,7 @@ ShellBeam Server 是 [ShellBeam](https://github.com/0xJean/shellbeam) 的自托�
 
 ## 从源码运行
 
-准备 Go 1.25 或更新版本和支持 CGO SQLite 的 C 编译器：
+准备 Go 1.26 或更新版本和支持 CGO SQLite 的 C 编译器：
 
 ```sh
 go build -o dist/shellbeam-server .
@@ -52,7 +52,7 @@ make build       # 构建 dist/shellbeam-server，写入产品版本和提交
 make notices     # 收集第三方许可证，需要 Python 3
 ```
 
-CI 运行测试、vet、二进制构建与本地容器构建检查。独立发行工作流支持手动触发及 `v*` 版本标签，使用 Go 1.25 和 Debian Bookworm 构建 Linux amd64/arm64 制品，附带校验和、MIT 许可证、上游 NOTICE 和依赖许可证。标签构建创建 GitHub Release 草稿；手动构建仅在明确勾选发布时创建草稿。工作流不部署服务，不推送容器镜像。
+CI 运行测试、vet、二进制构建与本地容器构建检查。独立发行工作流支持手动触发及 `v*` 版本标签，使用 Go 1.26 和 Debian Bookworm 构建 Linux amd64/arm64 制品，附带校验和、MIT 许可证、上游 NOTICE 和依赖许可证。标签构建创建 GitHub Release 草稿；手动构建仅在明确勾选发布时创建草稿。工作流不部署服务，不推送容器镜像。
 
 完整测试和发行目标平台为 Linux。上游 JavaScript 运行时测试包含 Linux 进程指标及文件系统路径假设，在 macOS 上请用 `docker build --target check .` 验证完整测试集。
 
