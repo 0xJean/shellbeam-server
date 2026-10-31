@@ -118,6 +118,7 @@ func (c *Controller) Register(r *gin.Engine) {
 	r.GET("/api/me", jsonrpc.Bind("public:getMe", jsonrpc.WithRaw()))
 	r.GET("/api/oauth", publicapi.OAuth)
 	r.GET("/api/oauth_callback", publicapi.OAuthCallback)
+	r.POST("/api/oauth_2fa", publicapi.OAuthTwoFactor)
 
 	g := r.Group(APIPath, c.requireActive)
 	g.GET("/auth", c.authStatus)

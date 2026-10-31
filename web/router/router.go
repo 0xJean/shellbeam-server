@@ -42,6 +42,7 @@ func registerPublicRoutes(r *gin.Engine) {
 	r.GET("/api/logout", public_api.Logout)
 	r.GET("/api/oauth", public_api.OAuth)
 	r.GET("/api/oauth_callback", public_api.OAuthCallback)
+	r.POST("/api/oauth_2fa", public_api.OAuthTwoFactor)
 	// 插件公开页面（visibility=public 的 iframe 页面），无需鉴权。
 	r.GET("/api/plugin/:short/*filepath", public_api.ServePluginFile)
 	// 短期文件预览令牌公开下载入口，供 Office 在线预览等服务端抓取。
@@ -133,7 +134,7 @@ func registerAdminRoutes(r *gin.Engine) {
 	// oauth2 绑定走重定向，保留 REST handler。
 	oauth2 := g.Group("/oauth2")
 	{
-		oauth2.GET("/bind", admin.BindingExternalAccount)
+		oauth2.POST("/bind", admin.BindingExternalAccount)
 		oauth2.POST("/unbind", admin.UnbindExternalAccount)
 	}
 
