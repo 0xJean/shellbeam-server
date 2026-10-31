@@ -38,6 +38,7 @@ Compose 示例在本地构建镜像，将 `/app/data` 保存到命名卷，并�
 ## 兼容性和运维
 
 - ShellBeam 产品版本与 Komari API 兼容版本分别管理。`/api/version` 保留 `version: "1.6.0"`；构建参数只覆盖 `utils.ServerVersion` 和 `utils.VersionHash`。
+- 首次安装时，只有直接来自本机回环地址且不带转发请求头的请求（例如 SSH 隧道）可以免令牌；其他请求必须在 `X-Install-Token` 请求头中提供启动时打印到控制台的一次性令牌。容器发布端口的流量不属于回环请求。详见 [docs/shellbeam-server.md](docs/shellbeam-server.md#first-initialization-and-authorization)。
 - 保持既有 Komari Agent 可用。服务端发行流程不安装、改名或升级 Agent。
 - 保留 `KOMARI_LISTEN` 和原有数据库参数。`SHELLBEAM_LISTEN` 是品牌别名；显式 `--listen` 优先。
 - 迁移已有数据时，先使用离线备份，在相同路径下验证。旧数据库可能需要保留的迁移或恢复 API；服务入口页不执行这些操作。
