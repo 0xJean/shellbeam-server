@@ -197,3 +197,36 @@ func resetUploadSessionsForTest() {
 	}
 	uploadMu.Unlock()
 }
+
+func TestInlineDispositionAllowlist(t *testing.T) {
+	cases := map[string]bool{
+		"image/png":                 true,
+		"image/jpeg":                true,
+		"application/pdf":           true,
+		"text/plain; charset=utf-8": true,
+		"text/html; charset=utf-8":  false,
+		"image/svg+xml":             false,
+		"application/xhtml+xml":     false,
+		"text/xml; charset=utf-8":   false,
+		"application/octet-stream":  false,
+		"not a media type;;":        false,
+	}
+	for contentType, want := range cases {
+		if got := isInlineSafeContentType(contentType); got != want {
+			t.Errorf("isInlineSafeContentType(%q) = %v, want %v", contentType, got, want)
+		}
+	}
+}
+
+func TestDownloadSecurityHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	setDownloadSecurityHeaders(context)
+	if got := recorder.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("X-Content-Type-Options = %q", got)
+	}
+	if got := recorder.Header().Get("Content-Security-Policy"); got != "sandbox" {
+		t.Fatalf("Content-Security-Policy = %q", got)
+	}
+}
