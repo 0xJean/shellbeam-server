@@ -113,9 +113,25 @@ func serveWebSocket(c *gin.Context) {
 			conn.WriteJSON(jerr.ResponseWithID(req.ID))
 			continue
 		}
+		// The connection only acts on incoming messages, so checking here is enough
+		// to stop a socket from outliving its session, API key or agent token.
+		if !principalStillValid(c, meta.Principal) {
+			conn.WriteJSON(rpc.ErrorResponse(req.ID, rpc.PermissionDenied, "credentials are no longer valid", nil))
+			break
+		}
 		// 同步写：SafeConn 内部有锁，串行写避免响应乱序与并发竞态。
 		conn.WriteJSON(dispatchWithSensitive(context.Background(), c, meta, &req))
 	}
+}
+
+// principalStillValid re-identifies the credentials presented at upgrade. An
+// anonymous connection has none to revoke.
+func principalStillValid(c *gin.Context, p *rpc.Principal) bool {
+	if p.Type == rpc.PrincipalAnonymous {
+		return true
+	}
+	current := api.IdentifyPrincipal(c)
+	return current.Type == p.Type && current.UserUUID == p.UserUUID && current.ClientUUID == p.ClientUUID
 }
 
 func servePost(c *gin.Context) {
