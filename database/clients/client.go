@@ -15,6 +15,39 @@ import (
 	"github.com/google/uuid"
 )
 
+// agentReportedColumns are the columns an Agent may set through a basic info
+// report. Tokens, names, billing, grouping and other administrator settings are
+// deliberately absent; those are only changed through the admin edit paths.
+var agentReportedColumns = map[string]bool{
+	"arch":               true,
+	"cpu_cores":          true,
+	"cpu_name":           true,
+	"cpu_physical_cores": true,
+	"disk_total":         true,
+	"gpu_name":           true,
+	"ipv4":               true,
+	"ipv6":               true,
+	"kernel_version":     true,
+	"mem_total":          true,
+	"os":                 true,
+	"swap_total":         true,
+	"version":            true,
+	"virtualization":     true,
+}
+
+// FilterAgentReportedInfo returns the allowlisted part of an Agent report.
+// Unknown keys are dropped rather than rejected so older and newer Agents keep
+// reporting.
+func FilterAgentReportedInfo(info map[string]interface{}) map[string]interface{} {
+	filtered := make(map[string]interface{}, len(agentReportedColumns))
+	for key, value := range info {
+		if agentReportedColumns[key] {
+			filtered[key] = value
+		}
+	}
+	return filtered
+}
+
 func DeleteClient(clientUuid string) error {
 	db := dbcore.GetDBInstance()
 	err := db.Delete(&models.Client{}, "uuid = ?", clientUuid).Error
