@@ -1,8 +1,12 @@
 package public
 
 import (
+	"crypto/rand"
 	"fmt"
+	"net/http"
 	"slices"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/komari-monitor/komari/database/accounts"
@@ -11,6 +15,47 @@ import (
 	"github.com/komari-monitor/komari/utils"
 	"github.com/komari-monitor/komari/web/oauth"
 )
+
+const (
+	oauthTicketCookie      = "oauth_2fa_ticket"
+	oauthTicketTTL         = 5 * time.Minute
+	oauthTicketMaxAttempts = 5
+)
+
+// oauthTicket records an OAuth login that passed the provider and still needs a
+// TOTP code. It holds no session; one is created only after the code verifies.
+type oauthTicket struct {
+	userUUID string
+	expires  time.Time
+	attempts int
+}
+
+var (
+	oauthTicketsMu sync.Mutex
+	oauthTickets   = map[string]*oauthTicket{}
+)
+
+const oauthTwoFactorPage = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Two-factor authentication</title></head>
+<body><form method="post" action="/api/oauth_2fa">
+<label>Two-factor authentication code <input name="2fa_code" inputmode="numeric" autocomplete="one-time-code" autofocus required></label>
+<button type="submit">Continue</button>
+</form></body></html>`
+
+// oauthStateValid checks the callback state. The QQ aggregator callback does not
+// return our state, so plain QQ login only proves the cookie exists and the
+// provider then checks it against its own cache. That weaker check must never
+// complete an account binding, which requires an exact match for every provider.
+func oauthStateValid(provider string, binding bool, cookieState, queryState string) bool {
+	if cookieState == "" {
+		return false
+	}
+	providersSkipStateCheck := []string{"qq"}
+	if !binding && slices.Contains(providersSkipStateCheck, provider) {
+		return true
+	}
+	return cookieState == queryState
+}
 
 // /api/oauth
 func OAuth(c *gin.Context) {
@@ -34,23 +79,17 @@ func OAuthCallback(c *gin.Context) {
 	state, _ := c.Cookie("oauth_state")
 	c.SetCookie("oauth_state", "", -1, "/", "", false, true)
 
+	// 如果cookie中有binding_external_account，说明是绑定外部账号
+	// 否则是登录
+	uuid, _ := c.Cookie("binding_external_account")
+	c.SetCookie("binding_external_account", "", -1, "/", "", false, true)
+
 	// 获取当前OAuth提供商名称
 	providerName := oauth.CurrentProvider().GetName()
 
-	providersSkipStateCheck := []string{"qq"}
-	if slices.Contains(providersSkipStateCheck, providerName) {
-		// 对于QQ登录，由于是通过QQ聚合登录平台中转，state可能会不匹配
-		// 但我们仍然需要验证state的存在性（不能是空的）
-		if state == "" {
-			c.JSON(400, gin.H{"status": "error", "error": "Invalid state"})
-			return
-		}
-	} else {
-		// 对于其他提供商，严格验证state匹配
-		if state == "" || state != c.Query("state") {
-			c.JSON(400, gin.H{"status": "error", "error": "Invalid state"})
-			return
-		}
+	if !oauthStateValid(providerName, uuid != "", state, c.Query("state")) {
+		c.JSON(400, gin.H{"status": "error", "error": "Invalid state"})
+		return
 	}
 
 	queries := make(map[string]string)
@@ -68,10 +107,6 @@ func OAuthCallback(c *gin.Context) {
 	// ID作为SSO ID
 	sso_id := fmt.Sprintf("%s_%s", oauth.CurrentProvider().GetName(), oidcUser.UserId)
 
-	// 如果cookie中有binding_external_account，说明是绑定外部账号
-	// 否则是登录
-	uuid, _ := c.Cookie("binding_external_account")
-	c.SetCookie("binding_external_account", "", -1, "/", "", false, true)
 	if uuid != "" {
 		// 绑定外部账号
 		session, _ := c.Cookie("session_token")
@@ -100,8 +135,37 @@ func OAuthCallback(c *gin.Context) {
 		return
 	}
 
+	// 开启了2FA时，与密码登录一样必须先通过TOTP校验
+	if user.TwoFactor != "" {
+		setOAuthTicketCookie(c, issueOAuthTicket(user.UUID), int(oauthTicketTTL.Seconds()))
+		renderOAuthTwoFactorPage(c, http.StatusOK)
+		return
+	}
+
+	completeOAuthLogin(c, user.UUID, http.StatusFound)
+}
+
+// /api/oauth_2fa
+func OAuthTwoFactor(c *gin.Context) {
+	ticketID, _ := c.Cookie(oauthTicketCookie)
+	userUUID, ok := beginOAuthTicketAttempt(ticketID)
+	if !ok {
+		setOAuthTicketCookie(c, "", -1)
+		c.JSON(401, gin.H{"status": "error", "message": "2FA login expired, please sign in again"})
+		return
+	}
+	if valid, err := accounts.Verify2Fa(userUUID, c.PostForm("2fa_code")); err != nil || !valid {
+		renderOAuthTwoFactorPage(c, http.StatusUnauthorized)
+		return
+	}
+	deleteOAuthTicket(ticketID)
+	setOAuthTicketCookie(c, "", -1)
+	completeOAuthLogin(c, userUUID, http.StatusSeeOther)
+}
+
+func completeOAuthLogin(c *gin.Context, userUUID string, redirectStatus int) {
 	// 创建会话
-	session, err := accounts.CreateSession(user.UUID, sessionCookieMaxAge, c.Request.UserAgent(), c.ClientIP(), "oauth")
+	session, err := accounts.CreateSession(userUUID, sessionCookieMaxAge, c.Request.UserAgent(), c.ClientIP(), "oauth")
 	if err != nil {
 		c.JSON(500, gin.H{"status": "error", "message": err.Error()})
 		return
@@ -109,6 +173,62 @@ func OAuthCallback(c *gin.Context) {
 
 	// 设置cookie并返回
 	setSessionCookie(c, session, sessionCookieMaxAge)
-	auditlog.Log(c.ClientIP(), user.UUID, "logged in (OAuth)", "login")
-	c.Redirect(302, "/admin/dashboard")
+	auditlog.Log(c.ClientIP(), userUUID, "logged in (OAuth)", "login")
+	c.Redirect(redirectStatus, "/admin/dashboard")
+}
+
+func renderOAuthTwoFactorPage(c *gin.Context, status int) {
+	c.Header("Cache-Control", "no-store")
+	c.Header("Content-Security-Policy", "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Data(status, "text/html; charset=utf-8", []byte(oauthTwoFactorPage))
+}
+
+func setOAuthTicketCookie(c *gin.Context, value string, maxAge int) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     oauthTicketCookie,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		Secure:   utils.GetScheme(c) == "https",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func issueOAuthTicket(userUUID string) string {
+	ticketID := rand.Text()
+	now := time.Now()
+	oauthTicketsMu.Lock()
+	defer oauthTicketsMu.Unlock()
+	for id, ticket := range oauthTickets {
+		if now.After(ticket.expires) {
+			delete(oauthTickets, id)
+		}
+	}
+	oauthTickets[ticketID] = &oauthTicket{userUUID: userUUID, expires: now.Add(oauthTicketTTL)}
+	return ticketID
+}
+
+// beginOAuthTicketAttempt consumes one attempt so a ticket cannot be used to
+// guess TOTP codes without limit.
+func beginOAuthTicketAttempt(ticketID string) (string, bool) {
+	oauthTicketsMu.Lock()
+	defer oauthTicketsMu.Unlock()
+	ticket, ok := oauthTickets[ticketID]
+	if !ok {
+		return "", false
+	}
+	ticket.attempts++
+	if time.Now().After(ticket.expires) || ticket.attempts > oauthTicketMaxAttempts {
+		delete(oauthTickets, ticketID)
+		return "", false
+	}
+	return ticket.userUUID, true
+}
+
+func deleteOAuthTicket(ticketID string) {
+	oauthTicketsMu.Lock()
+	defer oauthTicketsMu.Unlock()
+	delete(oauthTickets, ticketID)
 }

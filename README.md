@@ -8,7 +8,7 @@ The server retains Komari's API, Agent protocol, account storage, monitoring his
 
 ## Run from source
 
-Install Go 1.25 or later and a C compiler for CGO SQLite, then run:
+Install Go 1.26 or later and a C compiler for CGO SQLite, then run:
 
 ```sh
 go build -o dist/shellbeam-server .
@@ -39,6 +39,7 @@ A Git checkout supplies the build commit automatically. Building a source archiv
 
 - ShellBeam's product version is independent of the Komari API compatibility version. `/api/version` keeps `version: "1.6.0"`; build flags only set `utils.ServerVersion` and `utils.VersionHash`.
 - The same read-only `/api/version` identity is available before first-run initialization and in recovery guides, so clients can check `product: "ShellBeam Server"` before submitting administrator credentials. Installation mode still exposes no normal account or monitoring routes.
+- First-run installation accepts a request without a token only from a direct loopback peer with no forwarding headers, such as an SSH tunnel. Other requests must send the one-time token printed to the console in `X-Install-Token`. See [First initialization and authorization](docs/shellbeam-server.md#first-initialization-and-authorization).
 - Existing Komari Agent executables remain usable. Server releases do not install, rename, or update Agents.
 - `KOMARI_LISTEN` and the existing database flags remain supported. `SHELLBEAM_LISTEN` is a branded alias; an explicit `--listen` flag takes precedence.
 - Existing data should first be tested on an offline backup with the same filesystem paths. Older databases may require the retained migration or recovery APIs; the service entry page does not perform these operations.
@@ -53,7 +54,7 @@ make build       # dist/shellbeam-server, with product version and commit
 make notices     # third-party license texts; requires Python 3
 ```
 
-CI tests, vets, builds, and checks a local container image. The release workflow can build manually or from a `v*` version tag. It packages Linux amd64/arm64 binaries compiled with Go 1.25 on Debian Bookworm, checksums, MIT license, upstream NOTICE, and dependency license texts. Tag builds create a draft GitHub release; manual builds publish a draft only when requested. No workflow deploys a service or pushes container images.
+CI tests, vets, builds, and checks a local container image. The release workflow can build manually or from a `v*` version tag. It packages Linux amd64/arm64 binaries compiled with Go 1.26 on Debian Bookworm, checksums, MIT license, upstream NOTICE, and dependency license texts. Tag builds create a draft GitHub release; manual builds publish a draft only when requested. No workflow deploys a service or pushes container images.
 
 Linux is the release and full-test target. On macOS, inherited JavaScript runtime tests include Linux-only process metrics and filesystem path assumptions; run the full suite in the container with `docker build --target check .`.
 

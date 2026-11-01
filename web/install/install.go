@@ -2,9 +2,14 @@ package install
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"mime"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -28,6 +33,9 @@ import (
 const (
 	PagePath = "/install"
 	APIPath  = "/api/install"
+
+	// SetupTokenHeader carries the one-time token printed at startup.
+	SetupTokenHeader = "X-Install-Token"
 )
 
 type Status struct {
@@ -49,13 +57,24 @@ type Controller struct {
 	mu     sync.Mutex
 	state  string
 	done   chan struct{}
+
+	setupToken     string
+	setupTokenOnce sync.Once
 }
 
 func NewController(db *gorm.DB) *Controller {
 	return &Controller{db: db, state: "ready", done: make(chan struct{})}
 }
 
-func (c *Controller) Activate() { c.active.Store(true) }
+// Activate opens the install API and prints the setup token. The token lives
+// only in memory, so it is replaced on every start and ends with install mode.
+func (c *Controller) Activate() {
+	c.setupTokenOnce.Do(func() {
+		c.setupToken = rand.Text()
+		logger.Infof("install", "First-run setup token (send as %s unless connecting directly over loopback): %s", SetupTokenHeader, c.setupToken)
+	})
+	c.active.Store(true)
+}
 
 func (c *Controller) Deactivate() { c.active.Store(false) }
 
@@ -64,11 +83,12 @@ func (c *Controller) Done() <-chan struct{} { return c.done }
 func (c *Controller) Register(r *gin.Engine) {
 	g := r.Group(APIPath, c.requireActive)
 	g.GET("/status", c.status)
-	g.POST("/complete", c.complete)
+	protected := g.Group("", rejectForeignOrigin, c.requireSetupToken)
+	protected.POST("/complete", requireJSONContentType, c.complete)
 	uploadHandler := upload.NewHandler(upload.DefaultStore, map[upload.Purpose]upload.Finalizer{
 		upload.PurposeBackup: c.finalizeBackupUpload,
 	})
-	uploadGroup := g.Group("/upload")
+	uploadGroup := protected.Group("/upload")
 	{
 		uploadGroup.POST("/init", uploadHandler.Init)
 		uploadGroup.POST("/chunk", uploadHandler.Chunk)
@@ -80,6 +100,66 @@ func (c *Controller) Register(r *gin.Engine) {
 func (c *Controller) requireActive(ctx *gin.Context) {
 	if !c.active.Load() {
 		ctx.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	ctx.Next()
+}
+
+// requireSetupToken admits direct loopback peers, which is how an SSH tunnel
+// arrives, and otherwise requires the token. It reads the raw RemoteAddr because
+// gin's ClientIP can be influenced by forwarding headers.
+func (c *Controller) requireSetupToken(ctx *gin.Context) {
+	if isDirectLoopbackRequest(ctx.Request) {
+		ctx.Next()
+		return
+	}
+	provided := ctx.GetHeader(SetupTokenHeader)
+	if provided == "" || subtle.ConstantTimeCompare([]byte(provided), []byte(c.setupToken)) != 1 {
+		api.RespondError(ctx, http.StatusUnauthorized, "a valid "+SetupTokenHeader+" header is required; find the token in the server console")
+		ctx.Abort()
+		return
+	}
+	ctx.Next()
+}
+
+func isDirectLoopbackRequest(request *http.Request) bool {
+	host, _, err := net.SplitHostPort(request.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	if ip == nil || !ip.IsLoopback() {
+		return false
+	}
+	// A reverse proxy on the same host also connects from loopback.
+	for name := range request.Header {
+		if name == "Forwarded" || name == "X-Real-Ip" || strings.HasPrefix(name, "X-Forwarded-") {
+			return false
+		}
+	}
+	return true
+}
+
+func rejectForeignOrigin(ctx *gin.Context) {
+	origin := ctx.GetHeader("Origin")
+	if origin == "" {
+		ctx.Next()
+		return
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Host == "" || !strings.EqualFold(parsed.Host, ctx.Request.Host) {
+		api.RespondError(ctx, http.StatusForbidden, "foreign origin is not allowed")
+		ctx.Abort()
+		return
+	}
+	ctx.Next()
+}
+
+func requireJSONContentType(ctx *gin.Context) {
+	mediaType, _, err := mime.ParseMediaType(ctx.GetHeader("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		api.RespondError(ctx, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		ctx.Abort()
 		return
 	}
 	ctx.Next()
@@ -137,7 +217,7 @@ func (c *Controller) complete(ctx *gin.Context) {
 	}
 	if err != nil {
 		c.fail()
-		api.RespondError(ctx, http.StatusBadRequest, fmt.Sprintf("monitoring database connection failed: %v", err))
+		api.RespondError(ctx, http.StatusBadRequest, "monitoring database connection failed: "+metricstore.RedactConnectionError(err.Error(), request.MetricDSN))
 		return
 	}
 

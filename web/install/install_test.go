@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -43,6 +44,7 @@ func performJSON(r http.Handler, method, path string, body any) *httptest.Respon
 	encoded, _ := json.Marshal(body)
 	request := httptest.NewRequest(method, path, bytes.NewReader(encoded))
 	request.Header.Set("Content-Type", "application/json")
+	request.RemoteAddr = "127.0.0.1:54321"
 	response := httptest.NewRecorder()
 	r.ServeHTTP(response, request)
 	return response
@@ -129,5 +131,97 @@ func TestInstallRejectsUnknownDSN(t *testing.T) {
 	var count int64
 	if err := db.Model(&models.User{}).Count(&count).Error; err != nil || count != 0 {
 		t.Fatalf("failed DSN created users: count=%d err=%v", count, err)
+	}
+}
+
+// installRequest posts an invalid body, so a request that passes the guards
+// stops at validation with 400 and creates nothing.
+func installRequest(remoteAddr string, headers map[string]string) *http.Request {
+	request := httptest.NewRequest(http.MethodPost, APIPath+"/complete", strings.NewReader(`{"username":"admin"}`))
+	request.Host = "monitor.example"
+	request.RemoteAddr = remoteAddr
+	request.Header.Set("Content-Type", "application/json")
+	for name, value := range headers {
+		request.Header.Set(name, value)
+	}
+	return request
+}
+
+func TestInstallGuards(t *testing.T) {
+	r, _, controller := setupInstallRouter(t)
+	token := controller.setupToken
+	if token == "" {
+		t.Fatal("activation did not generate a setup token")
+	}
+	const remote, loopback = "203.0.113.9:4000", "127.0.0.1:4000"
+	cases := []struct {
+		name    string
+		remote  string
+		headers map[string]string
+		want    int
+	}{
+		{"remote without token", remote, nil, http.StatusUnauthorized},
+		{"remote with wrong token", remote, map[string]string{SetupTokenHeader: "wrong"}, http.StatusUnauthorized},
+		{"remote with token", remote, map[string]string{SetupTokenHeader: token}, http.StatusBadRequest},
+		{"remote claiming loopback", remote, map[string]string{"X-Forwarded-For": "127.0.0.1", "X-Real-IP": "127.0.0.1"}, http.StatusUnauthorized},
+		{"ipv4 loopback", loopback, nil, http.StatusBadRequest},
+		{"ipv6 loopback", "[::1]:4000", nil, http.StatusBadRequest},
+		{"mapped loopback", "[::ffff:127.0.0.1]:4000", nil, http.StatusBadRequest},
+		{"proxied X-Forwarded-For", loopback, map[string]string{"X-Forwarded-For": "203.0.113.9"}, http.StatusUnauthorized},
+		{"proxied X-Forwarded-Proto", loopback, map[string]string{"X-Forwarded-Proto": "https"}, http.StatusUnauthorized},
+		{"proxied Forwarded", loopback, map[string]string{"Forwarded": "for=203.0.113.9"}, http.StatusUnauthorized},
+		{"proxied with token", loopback, map[string]string{"X-Forwarded-For": "203.0.113.9", SetupTokenHeader: token}, http.StatusBadRequest},
+		{"foreign origin on loopback", loopback, map[string]string{"Origin": "https://evil.example"}, http.StatusForbidden},
+		{"null origin on loopback", loopback, map[string]string{"Origin": "null"}, http.StatusForbidden},
+		{"same origin on loopback", loopback, map[string]string{"Origin": "https://monitor.example"}, http.StatusBadRequest},
+		{"form content type", loopback, map[string]string{"Content-Type": "application/x-www-form-urlencoded"}, http.StatusUnsupportedMediaType},
+		{"plain content type", loopback, map[string]string{"Content-Type": "text/plain"}, http.StatusUnsupportedMediaType},
+		{"json with charset", loopback, map[string]string{"Content-Type": "application/json; charset=utf-8"}, http.StatusBadRequest},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			r.ServeHTTP(response, installRequest(tc.remote, tc.headers))
+			if response.Code != tc.want {
+				t.Fatalf("status = %d, want %d: %s", response.Code, tc.want, response.Body.String())
+			}
+		})
+	}
+}
+
+func TestInstallUploadRequiresTokenAndStatusStaysOpen(t *testing.T) {
+	r, _, _ := setupInstallRouter(t)
+	for _, operation := range []string{"init", "chunk", "merge", "cancel"} {
+		request := httptest.NewRequest(http.MethodPost, APIPath+"/upload/"+operation, strings.NewReader(`{}`))
+		request.RemoteAddr = "203.0.113.9:4000"
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		if response.Code != http.StatusUnauthorized {
+			t.Errorf("upload %s status = %d, want %d", operation, response.Code, http.StatusUnauthorized)
+		}
+	}
+	request := httptest.NewRequest(http.MethodGet, APIPath+"/status", nil)
+	request.RemoteAddr = "203.0.113.9:4000"
+	response := httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status endpoint = %d, want %d", response.Code, http.StatusOK)
+	}
+}
+
+func TestInstallConnectionErrorHidesCredentials(t *testing.T) {
+	r, _, _ := setupInstallRouter(t)
+	const secret = "s3cret-password"
+	response := performJSON(r, http.MethodPost, APIPath+"/complete", completeRequest{
+		Username:  "admin",
+		Password:  "Correct-horse-battery-staple1",
+		Sitename:  "Komari",
+		MetricDSN: "postgres://owner:" + secret + "@127.0.0.1:1/metrics?connect_timeout=1",
+	})
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusBadRequest, response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), secret) {
+		t.Fatalf("response leaked the DSN password: %s", response.Body.String())
 	}
 }

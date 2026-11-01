@@ -4,7 +4,7 @@ ShellBeam Server supplies the backend. The embedded HTML page provides service i
 
 ## Build and startup
 
-Use Go 1.25 or later with CGO enabled and a C compiler. `go build -o dist/shellbeam-server .` builds directly; Node.js, a frontend repository, and downloaded Web assets are not required. `make build` adds the ShellBeam product version and Git commit using linker flags. Set `SERVER_VERSION` and `VERSION_HASH` explicitly for a build from a source archive.
+Use Go 1.26 or later with CGO enabled and a C compiler. `go build -o dist/shellbeam-server .` builds directly; Node.js, a frontend repository, and downloaded Web assets are not required. `make build` adds the ShellBeam product version and Git commit using linker flags. Set `SERVER_VERSION` and `VERSION_HASH` explicitly for a build from a source archive.
 
 ```sh
 make build SERVER_VERSION=0.1.0-dev
@@ -22,7 +22,16 @@ The Docker build compiles with CGO on Debian Bookworm and uses a matching Debian
 3. The client reads `/api/install/status` and sends `/api/install/complete` only when `required` is true. Installation is not replayed on an initialized instance.
 4. After startup finishes, the client signs in via `/api/login`, verifies the compatible server version, reuses an existing server API key or creates one only when none exists, verifies `/api/admin/client/list`, and stores the key in the client's Vault.
 
-The initial install API creates the first administrator without a prior session. Keep a new instance on a controlled endpoint until initialization completes. Administrator passwords are not part of the server build or Compose file.
+The initial install API creates the first administrator without a prior session, so it is restricted while the instance is uninitialized:
+
+- At startup in install mode the server generates a one-time setup token and prints it to the console (`docker compose logs` for the container). It is held in memory, changes on every start, and stops working once installation completes.
+- `POST /api/install/complete` and `/api/install/upload/*` accept a request without the token only when its direct TCP peer is loopback and it carries no `Forwarded`, `X-Forwarded-*` or `X-Real-IP` header. This is the SSH-tunnel path, for example `ssh -L 25774:127.0.0.1:25774 server`. Every other request must send the token in the `X-Install-Token` header.
+- `complete` requires `Content-Type: application/json`, and both routes reject a browser `Origin` that does not match the request host. `/api/install/status` and `/api/version` stay open.
+- A reverse proxy on the same host connects from loopback, so it must send `X-Forwarded-For` or an equivalent header, or a plain `proxy_pass` would pass as local. Do not publish an uninitialized instance through a proxy that adds none of these headers.
+
+- In a container, published-port traffic reaches the server from the bridge gateway rather than loopback, even when the port is bound to `127.0.0.1` on the host as in the Compose file. Such requests need the token.
+
+ShellBeam clients that do not yet send `X-Install-Token` can initialize a new service only when the server itself sees a loopback peer, such as an SSH tunnel to a process running directly on the host. For a container or any other endpoint, send the installation request with the token, for example with `curl`, and then add the initialized service in the client. Administrator passwords are not part of the server build or Compose file.
 
 For an initialized instance, use administrator sign-in, including `2fa_code` if enabled, or an existing server API key. The backend retains `session_token` cookie authentication and `Authorization: Bearer <key>` authentication. The compatibility routes and API key semantics do not change with the product name.
 

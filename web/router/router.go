@@ -42,6 +42,7 @@ func registerPublicRoutes(r *gin.Engine) {
 	r.GET("/api/logout", public_api.Logout)
 	r.GET("/api/oauth", public_api.OAuth)
 	r.GET("/api/oauth_callback", public_api.OAuthCallback)
+	r.POST("/api/oauth_2fa", public_api.OAuthTwoFactor)
 	// 插件公开页面（visibility=public 的 iframe 页面），无需鉴权。
 	r.GET("/api/plugin/:short/*filepath", public_api.ServePluginFile)
 	// 短期文件预览令牌公开下载入口，供 Office 在线预览等服务端抓取。
@@ -93,7 +94,9 @@ func registerAdminRoutes(r *gin.Engine) {
 	uploadHandler := admin.NewArchiveUploadHandler()
 	uploadGroup := g.Group("/upload")
 	{
-		uploadGroup.POST("/init", uploadHandler.Init)
+		// Chunks are bound to the upload id from init, and one TOTP code would
+		// not outlast a long transfer, so only init asks for 2FA.
+		uploadGroup.POST("/init", api.RequireSensitive2FA(), uploadHandler.Init)
 		uploadGroup.POST("/chunk", uploadHandler.Chunk)
 		uploadGroup.POST("/merge", uploadHandler.Merge)
 		uploadGroup.POST("/cancel", uploadHandler.Cancel)
@@ -133,7 +136,7 @@ func registerAdminRoutes(r *gin.Engine) {
 	// oauth2 绑定走重定向，保留 REST handler。
 	oauth2 := g.Group("/oauth2")
 	{
-		oauth2.GET("/bind", admin.BindingExternalAccount)
+		oauth2.POST("/bind", admin.BindingExternalAccount)
 		oauth2.POST("/unbind", admin.UnbindExternalAccount)
 	}
 
@@ -183,7 +186,7 @@ func registerAdminRoutes(r *gin.Engine) {
 		clientGroup.POST("/:uuid/file/upload", filemanager.Upload)
 		clientGroup.GET("/:uuid/file/download", filemanager.Download)
 		clientGroup.HEAD("/:uuid/file/download", filemanager.Download)
-		clientGroup.GET("/:uuid/file/preview-token", filemanager.CreatePreviewToken)
+		clientGroup.GET("/:uuid/file/preview-token", api.RequireSensitive2FA(), filemanager.CreatePreviewToken)
 	}
 
 	// records
@@ -214,7 +217,7 @@ func registerAdminRoutes(r *gin.Engine) {
 		pluginGroup.PUT("/market/sources/:id", admin.UpdatePluginMarketSource)
 		pluginGroup.DELETE("/market/sources/:id", admin.DeletePluginMarketSource)
 		pluginGroup.GET("/market/catalog", admin.ListPluginMarketCatalog)
-		pluginGroup.POST("/market/install", admin.InstallPluginFromMarket)
+		pluginGroup.POST("/market/install", api.RequireSensitive2FA(), admin.InstallPluginFromMarket)
 		pluginGroup.POST("/delete", jsonRpc.Bind("admin:deletePlugin"))
 		pluginGroup.GET("/configuration", jsonRpc.Bind("admin:getPluginConfiguration", jsonRpc.WithQuery("short")))
 		pluginGroup.POST("/configuration", jsonRpc.Bind("admin:setPluginConfiguration"))

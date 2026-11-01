@@ -8,7 +8,7 @@ ShellBeam Server 是 [ShellBeam](https://github.com/0xJean/shellbeam) 的自托�
 
 ## 从源码运行
 
-准备 Go 1.25 或更新版本和支持 CGO SQLite 的 C 编译器：
+准备 Go 1.26 或更新版本和支持 CGO SQLite 的 C 编译器：
 
 ```sh
 go build -o dist/shellbeam-server .
@@ -38,6 +38,7 @@ Compose 示例在本地构建镜像，将 `/app/data` 保存到命名卷，并�
 ## 兼容性和运维
 
 - ShellBeam 产品版本与 Komari API 兼容版本分别管理。`/api/version` 保留 `version: "1.6.0"`；构建参数只覆盖 `utils.ServerVersion` 和 `utils.VersionHash`。
+- 首次安装时，只有直接来自本机回环地址且不带转发请求头的请求（例如 SSH 隧道）可以免令牌；其他请求必须在 `X-Install-Token` 请求头中提供启动时打印到控制台的一次性令牌。容器发布端口的流量不属于回环请求。详见 [docs/shellbeam-server.md](docs/shellbeam-server.md#first-initialization-and-authorization)。
 - 保持既有 Komari Agent 可用。服务端发行流程不安装、改名或升级 Agent。
 - 保留 `KOMARI_LISTEN` 和原有数据库参数。`SHELLBEAM_LISTEN` 是品牌别名；显式 `--listen` 优先。
 - 迁移已有数据时，先使用离线备份，在相同路径下验证。旧数据库可能需要保留的迁移或恢复 API；服务入口页不执行这些操作。
@@ -52,7 +53,7 @@ make build       # 构建 dist/shellbeam-server，写入产品版本和提交
 make notices     # 收集第三方许可证，需要 Python 3
 ```
 
-CI 运行测试、vet、二进制构建与本地容器构建检查。独立发行工作流支持手动触发及 `v*` 版本标签，使用 Go 1.25 和 Debian Bookworm 构建 Linux amd64/arm64 制品，附带校验和、MIT 许可证、上游 NOTICE 和依赖许可证。标签构建创建 GitHub Release 草稿；手动构建仅在明确勾选发布时创建草稿。工作流不部署服务，不推送容器镜像。
+CI 运行测试、vet、二进制构建与本地容器构建检查。独立发行工作流支持手动触发及 `v*` 版本标签，使用 Go 1.26 和 Debian Bookworm 构建 Linux amd64/arm64 制品，附带校验和、MIT 许可证、上游 NOTICE 和依赖许可证。标签构建创建 GitHub Release 草稿；手动构建仅在明确勾选发布时创建草稿。工作流不部署服务，不推送容器镜像。
 
 完整测试和发行目标平台为 Linux。上游 JavaScript 运行时测试包含 Linux 进程指标及文件系统路径假设，在 macOS 上请用 `docker build --target check .` 验证完整测试集。
 

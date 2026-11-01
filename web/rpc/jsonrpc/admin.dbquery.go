@@ -91,6 +91,7 @@ func init() {
 		},
 		Returns: "{ database: string, driver: string, tables: string[] }",
 	})
+	rpc.MarkSensitive("admin:dbExec")
 }
 
 func adminDBQuery(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {

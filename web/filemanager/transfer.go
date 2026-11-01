@@ -35,6 +35,22 @@ const (
 
 var ErrTooManyUploads = errors.New("too many concurrent uploads")
 
+var inlineSafeMediaTypes = map[string]bool{
+	"application/pdf": true,
+	"audio/mpeg":      true,
+	"audio/ogg":       true,
+	"audio/wav":       true,
+	"image/avif":      true,
+	"image/bmp":       true,
+	"image/gif":       true,
+	"image/jpeg":      true,
+	"image/png":       true,
+	"image/webp":      true,
+	"text/plain":      true,
+	"video/mp4":       true,
+	"video/webm":      true,
+}
+
 type uploadSession struct {
 	mu         sync.Mutex
 	ID         string
@@ -142,6 +158,12 @@ func Upload(c *gin.Context) {
 	}
 	switch operation {
 	case "init":
+		// Later operations are bound to the session this creates, and one TOTP
+		// code would not outlast a long transfer, so only init asks for 2FA.
+		if err := api.VerifySensitive2FA(c); err != nil {
+			api.RespondError(c, http.StatusUnauthorized, err.Error())
+			return
+		}
 		initRemoteUpload(c, clientUUID)
 	case "chunk":
 		uploadRemoteChunk(c, clientUUID)
@@ -545,13 +567,13 @@ func downloadFile(c *gin.Context, clientUUID, path string, options downloadRespo
 			name = candidate
 		}
 	}
-	disposition := "attachment"
-	if c.Query("inline") == "1" || strings.EqualFold(c.Query("inline"), "true") {
-		disposition = "inline"
-	}
 	contentType := mime.TypeByExtension(strings.ToLower(filepath.Ext(actualName)))
 	if contentType == "" {
 		contentType = "application/octet-stream"
+	}
+	disposition := "attachment"
+	if (c.Query("inline") == "1" || strings.EqualFold(c.Query("inline"), "true")) && isInlineSafeContentType(contentType) {
+		disposition = "inline"
 	}
 	transferChunkSize := downloadChunkSizeForRequest(c, clientUUID)
 	setHeaders := func() {
@@ -563,6 +585,7 @@ func downloadFile(c *gin.Context, clientUUID, path string, options downloadRespo
 		}
 		c.Header("Content-Type", contentType)
 		c.Header("Content-Disposition", formatDownloadContentDisposition(disposition, name, options.OfficeCompatible))
+		setDownloadSecurityHeaders(c)
 		c.Header("Accept-Ranges", "bytes")
 		c.Header("Content-Length", strconv.FormatInt(contentLength, 10))
 		c.Header("Content-Encoding", "identity")
@@ -608,6 +631,24 @@ func downloadFile(c *gin.Context, clientUUID, path string, options downloadRespo
 		return
 	}
 	auditFileTransfer(c, "download", clientUUID, path)
+}
+
+// isInlineSafeContentType reports whether a browser can render the type without
+// running script on the server's origin. File names come from the Agent, so
+// HTML, SVG and XML types must always download as attachments.
+func isInlineSafeContentType(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return false
+	}
+	return inlineSafeMediaTypes[mediaType]
+}
+
+// setDownloadSecurityHeaders stops browsers from reinterpreting Agent-supplied
+// bytes as active content, whatever disposition the response uses.
+func setDownloadSecurityHeaders(c *gin.Context) {
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "sandbox")
 }
 
 func ifRangeAllowsRange(value, etag string, modifiedAt time.Time) bool {
