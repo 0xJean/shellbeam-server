@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/komari-monitor/komari/database/models"
 	"github.com/komari-monitor/komari/internal/config"
 	"github.com/komari-monitor/komari/internal/plugin"
 	"github.com/komari-monitor/komari/web/api"
@@ -328,13 +329,14 @@ func InstallPluginFromMarket(c *gin.Context) {
 		api.RespondError(c, http.StatusInternalServerError, "Failed to save temporary plugin file")
 		return
 	}
-	installed, err := plugin.InstallZip(tempPath)
+	installed, err := plugin.InstallZipExpecting(tempPath, func(manifest models.Plugin) error {
+		if manifest.Short != selected.Short || manifest.Version != selected.Version {
+			return errors.New("Plugin manifest does not match the market catalog")
+		}
+		return nil
+	})
 	if err != nil {
 		api.RespondError(c, http.StatusBadRequest, err.Error())
-		return
-	}
-	if installed.Short != selected.Short || installed.Version != selected.Version {
-		api.RespondError(c, http.StatusBadRequest, "Plugin manifest does not match the market catalog")
 		return
 	}
 	api.RespondSuccessMessage(c, "Plugin installed from market", installed)

@@ -155,16 +155,14 @@ func maxHookBodyLimit(hooks []*hookEntry) int64 {
 	return limit
 }
 
-// wrapHandler installs the hook chain around the application handler. WebSocket
-// upgrades pass through untouched because the response cannot be buffered.
-// Hooks with a path/method filter only run for matching requests; unfiltered
-// requests skip both the hook chain and its body buffering.
+// wrapHandler installs the hook chain around the application handler. Upgrade
+// headers are client input and do not skip the chain: request hooks see every
+// request, and response hooks are left out only once the handler has really
+// hijacked the connection, when there is no response to buffer. Hooks with a
+// path/method filter only run for matching requests; unfiltered requests skip
+// both the hook chain and its body buffering.
 func (m *Manager) wrapHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isUpgradeRequest(r) {
-			next.ServeHTTP(w, r)
-			return
-		}
 		reqHooks := filterHooks(m.hooksOf(hookRequest), r)
 		respHooks := filterHooks(m.hooksOf(hookResponse), r)
 		if len(reqHooks) == 0 && len(respHooks) == 0 {
@@ -196,6 +194,9 @@ func (m *Manager) wrapHandler(next http.Handler) http.Handler {
 		}
 		bw := newBufferedResponseWriter(w)
 		next.ServeHTTP(bw, req)
+		if bw.wasHijacked() {
+			return
+		}
 		for _, hook := range respHooks {
 			if err := m.runResponseHook(req, bw, hook); err != nil {
 				m.logHookError(hook, err)
@@ -437,6 +438,12 @@ func (b *bufferedResponseWriter) passedThrough() bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.passthrough
+}
+
+func (b *bufferedResponseWriter) wasHijacked() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.hijacked
 }
 
 func (b *bufferedResponseWriter) Header() http.Header { return b.header }

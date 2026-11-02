@@ -151,6 +151,8 @@ func adminGetClient(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonR
 	if err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, err.Error(), nil)
 	}
+	// Tokens come only from admin:getClientToken, which asks for 2FA.
+	result.Token = ""
 	return result, nil
 }
 
@@ -158,6 +160,10 @@ func adminListClients(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonR
 	cls, err := clients.GetAllClientBasicInfo()
 	if err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, err.Error(), nil)
+	}
+	// Tokens come only from admin:getClientToken, which asks for 2FA.
+	for i := range cls {
+		cls[i].Token = ""
 	}
 	return cls, nil
 }

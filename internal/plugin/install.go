@@ -20,6 +20,13 @@ import (
 // unloads it first and restores it to its persisted enabled state when the
 // extraction succeeds.
 func InstallZip(zipPath string) (models.Plugin, error) {
+	return InstallZipExpecting(zipPath, nil)
+}
+
+// InstallZipExpecting is InstallZip with a check on the package manifest that
+// runs before the installed copy is touched, so a package that fails it cannot
+// replace another plugin's files.
+func InstallZipExpecting(zipPath string, expect func(models.Plugin) error) (models.Plugin, error) {
 	var info models.Plugin
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
@@ -62,6 +69,11 @@ func InstallZip(zipPath string) (models.Plugin, error) {
 	}
 	if err := CheckKomariVersion(info.Komari); err != nil {
 		return info, err
+	}
+	if expect != nil {
+		if err := expect(info); err != nil {
+			return info, err
+		}
 	}
 
 	if err := global.unload(info.Short); err != nil && !errors.Is(err, errNotLoaded) {

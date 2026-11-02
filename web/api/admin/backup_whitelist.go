@@ -66,6 +66,10 @@ func copyDir(srcDir, dstDir string) error {
 		if info.IsDir() {
 			return os.MkdirAll(dst, 0755)
 		}
+		// A symlink under data/ may point anywhere; a plugin can plant one.
+		if !info.Mode().IsRegular() {
+			return nil
+		}
 		return copyFile(path, dst)
 	})
 }

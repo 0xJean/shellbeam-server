@@ -259,6 +259,11 @@ class Smoke:
         require(isinstance(nodes, list))
         return nodes
 
+    def client_token(self, node_id, auth):
+        data = self.successful("/api/admin/client/" + quote(node_id, safe="") + "/token", headers=auth)
+        require(isinstance(data, dict))
+        return data.get("token")
+
     def settings(self, auth):
         settings = self.successful("/api/admin/settings/", headers=auth)
         require(isinstance(settings, dict))
@@ -394,7 +399,9 @@ class Smoke:
         nodes = self.nodes(auth)
         require(len(nodes) == 1 and nodes[0].get("uuid") == node_id)
         original = nodes[0]
-        require(original.get("token") == agent_token and bool(original.get("created_at")))
+        # The list must not expose agent tokens; the token endpoint is the only read path.
+        require(not original.get("token") and bool(original.get("created_at")))
+        require(self.client_token(node_id, auth) == agent_token)
         self.passed("synthetic-node-api-creation")
 
         self.stage = "v2-http-agent-report"
@@ -450,8 +457,9 @@ class Smoke:
         require(self.wait_for(self.version) == initial_version)
         nodes = self.nodes(auth)
         require(len(nodes) == 1)
-        for name in ("uuid", "token", "created_at", "name"):
+        for name in ("uuid", "created_at", "name"):
             require(nodes[0].get(name) == original.get(name))
+        require(self.client_token(node_id, auth) == agent_token)
         settings = self.settings(auth)
         require(settings.get("sitename") == site_name)
         require(settings.get("api_key") == api_key)
