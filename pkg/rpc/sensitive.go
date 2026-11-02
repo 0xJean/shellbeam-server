@@ -10,6 +10,7 @@ import "sync"
 var (
 	muSensitive      sync.RWMutex
 	sensitiveMethods = map[string]bool{}
+	sensitiveWhen    = map[string]func(*JsonRpcRequest) bool{}
 )
 
 // MarkSensitive 标记某方法为敏感操作。method 为完整方法名（如 "admin:exec"）。
@@ -25,4 +26,20 @@ func IsSensitive(method string) bool {
 	muSensitive.RLock()
 	defer muSensitive.RUnlock()
 	return sensitiveMethods[method]
+}
+
+// MarkSensitiveWhen marks a method as sensitive only for requests the predicate
+// accepts, for a method where only some parameters need a challenge.
+func MarkSensitiveWhen(method string, when func(*JsonRpcRequest) bool) {
+	muSensitive.Lock()
+	defer muSensitive.Unlock()
+	sensitiveWhen[method] = when
+}
+
+// RequiresSensitive reports whether this request needs a sensitive challenge.
+func RequiresSensitive(req *JsonRpcRequest) bool {
+	muSensitive.RLock()
+	always, when := sensitiveMethods[req.Method], sensitiveWhen[req.Method]
+	muSensitive.RUnlock()
+	return always || (when != nil && when(req))
 }

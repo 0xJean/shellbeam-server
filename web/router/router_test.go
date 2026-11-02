@@ -87,6 +87,8 @@ func TestSensitiveRESTRoutesChallengeOnly2FAAccounts(t *testing.T) {
 		{http.MethodPost, "/api/admin/plugin/market/install", `{}`},
 		{http.MethodPost, "/api/admin/client/missing/file/upload", `{}`},
 		{http.MethodGet, "/api/admin/client/missing/file/preview-token", ""},
+		// Without a pending 2fa_secret cookie, Enable2FA answers 400.
+		{http.MethodPost, "/api/admin/2fa/enable", ""},
 	}
 	perform := func(method, path, body, cookie, bearer, code string) int {
 		request := httptest.NewRequest(method, path, strings.NewReader(body))

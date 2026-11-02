@@ -40,20 +40,31 @@ type Module struct {
 	nextTickSchedule  goja.Callable
 }
 
+// safeEnvironmentNames is what scripts see of the server's environment. The rest
+// can hold database credentials and provider keys.
+var safeEnvironmentNames = map[string]bool{
+	"HOME": true, "LANG": true, "NODE_ENV": true, "PATH": true, "PWD": true, "TEMP": true,
+	"TERM": true, "TMP": true, "TMPDIR": true, "TZ": true, "USER": true,
+}
+
+func safeEnvironment(items []string) map[string]string {
+	environment := make(map[string]string)
+	for _, item := range items {
+		name, value, ok := strings.Cut(item, "=")
+		if ok && (safeEnvironmentNames[name] || strings.HasPrefix(name, "LC_")) {
+			environment[name] = value
+		}
+	}
+	return environment
+}
+
 func New(runtime *bridge.Runtime, filesystem *fs.Module, allowExec bool, startedAt time.Time, reportError func(*goja.Runtime, []goja.Value)) *Module {
 	return &Module{runtime: runtime, fs: filesystem, allowExec: allowExec, startedAt: startedAt, reportError: reportError}
 }
 
 func (m *Module) Load(vm *goja.Runtime, module *goja.Object) {
 	process := events.NewEmitter(vm)
-	environment := make(map[string]string)
-	for _, item := range os.Environ() {
-		parts := strings.SplitN(item, "=", 2)
-		if len(parts) == 2 {
-			environment[parts[0]] = parts[1]
-		}
-	}
-	_ = process.Set("env", environment)
+	_ = process.Set("env", safeEnvironment(os.Environ()))
 	_ = process.Set("argv", append([]string{os.Args[0], "script.js"}, os.Args[1:]...))
 	_ = process.Set("execArgv", []string{})
 	_ = process.Set("execPath", os.Args[0])

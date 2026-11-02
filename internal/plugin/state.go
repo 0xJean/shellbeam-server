@@ -17,9 +17,13 @@ type State struct {
 }
 
 // PluginState is the persisted state of one plugin.
+// approvalHashSchema 2 includes the node permission in the approval hash.
+const approvalHashSchema = 2
+
 type PluginState struct {
 	Enabled                 bool      `json:"enabled"`
 	ApprovedPermissionsHash string    `json:"approved_permissions_hash"`
+	ApprovalHashSchema      int       `json:"approval_hash_schema,omitempty"`
 	LastError               string    `json:"last_error"`
 	UpdatedAt               time.Time `json:"updated_at"`
 }

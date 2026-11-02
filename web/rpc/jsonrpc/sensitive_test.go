@@ -35,6 +35,7 @@ func TestSensitiveMethodsAreMarked(t *testing.T) {
 		"admin:exec", "admin:getAgentStartupConfig", "admin:dbExec", "admin:getClientToken",
 		"admin:fileList", "admin:fileListRoots", "admin:fileStat", "admin:fileMkdir", "admin:fileDelete",
 		"admin:fileMove", "admin:fileCopy", "admin:fileChmod", "admin:fileChown", "admin:fileSearch",
+		"admin:dbQuery", "admin:setOidcProvider",
 	} {
 		if !rpc.IsSensitive(method) {
 			t.Errorf("%s must be sensitive", method)

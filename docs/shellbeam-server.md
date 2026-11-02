@@ -25,9 +25,9 @@ The Docker build compiles with CGO on Debian Bookworm and uses a matching Debian
 The initial install API creates the first administrator without a prior session, so it is restricted while the instance is uninitialized:
 
 - At startup in install mode the server generates a one-time setup token and prints it to the console (`docker compose logs` for the container). It is held in memory, changes on every start, and stops working once installation completes.
-- `POST /api/install/complete` and `/api/install/upload/*` accept a request without the token only when its direct TCP peer is loopback and it carries no `Forwarded`, `X-Forwarded-*` or `X-Real-IP` header. This is the SSH-tunnel path, for example `ssh -L 25774:127.0.0.1:25774 server`. Every other request must send the token in the `X-Install-Token` header.
+- `POST /api/install/complete` and `/api/install/upload/*` accept a request without the token only when its direct TCP peer is loopback, its `Host` is a loopback address or `localhost`, any `Origin` is the same `http` or `https` origin, and it carries no `Forwarded`, `Via`, `X-Forwarded-*`, `X-Real-IP` or similar header. This is the SSH-tunnel path, for example `ssh -L 25774:127.0.0.1:25774 server`. Every other request must send the token in the `X-Install-Token` header.
 - `complete` requires `Content-Type: application/json`, and both routes reject a browser `Origin` that does not match the request host. `/api/install/status` and `/api/version` stay open.
-- A reverse proxy on the same host connects from loopback, so it must send `X-Forwarded-For` or an equivalent header, or a plain `proxy_pass` would pass as local. Do not publish an uninitialized instance through a proxy that adds none of these headers.
+- A reverse proxy on the same host connects from loopback. It is only refused if it keeps the public `Host` or sends a forwarding header, and a plain `proxy_pass` that rewrites `Host` to `127.0.0.1` does neither, so it would pass as local. Do not publish an uninitialized instance through such a proxy.
 
 - In a container, published-port traffic reaches the server from the bridge gateway rather than loopback, even when the port is bound to `127.0.0.1` on the host as in the Compose file. Such requests need the token.
 

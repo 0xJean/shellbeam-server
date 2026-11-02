@@ -67,7 +67,7 @@ func OAuth(c *gin.Context) {
 
 	authURL, state := oauth.CurrentProvider().GetAuthorizationURL(utils.GetCallbackURL(c))
 
-	c.SetCookie("oauth_state", state, 3600, "/", "", false, true)
+	c.SetCookie("oauth_state", state, 3600, "/", "", utils.GetScheme(c) == "https", true)
 
 	c.Redirect(302, authURL)
 }
@@ -77,7 +77,7 @@ func OAuthCallback(c *gin.Context) {
 
 	// 验证state防止CSRF攻击
 	state, _ := c.Cookie("oauth_state")
-	c.SetCookie("oauth_state", "", -1, "/", "", false, true)
+	c.SetCookie("oauth_state", "", -1, "/", "", utils.GetScheme(c) == "https", true)
 
 	// 如果cookie中有binding_external_account，说明是绑定外部账号
 	// 否则是登录

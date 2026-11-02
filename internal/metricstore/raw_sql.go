@@ -44,6 +44,38 @@ func QueryForDriver(ctx context.Context, query func(metric.Driver) (string, erro
 	return rows, activeStore.Driver(), storeOperations.ReleaseShared, nil
 }
 
+// QueryReadOnly runs a raw query with writes refused by the database. The query
+// callback may reject the statement for the active driver. The caller must invoke
+// the returned release function after closing rows.
+func QueryReadOnly(ctx context.Context, query func(metric.Driver) (string, error), args ...any) (*sql.Rows, metric.Driver, func(), error) {
+	if err := storeOperations.AcquireShared(ctx); err != nil {
+		return nil, "", nil, fmt.Errorf("wait for metric store operations before query: %w", err)
+	}
+
+	storeMu.RLock()
+	activeStore := store
+	storeMu.RUnlock()
+	if activeStore == nil {
+		storeOperations.ReleaseShared()
+		return nil, "", nil, ErrStoreNotInitialized
+	}
+
+	statement, err := query(activeStore.Driver())
+	if err != nil {
+		storeOperations.ReleaseShared()
+		return nil, "", nil, err
+	}
+	rows, release, err := activeStore.QueryReadOnly(ctx, statement, args...)
+	if err != nil {
+		storeOperations.ReleaseShared()
+		return nil, "", nil, err
+	}
+	return rows, activeStore.Driver(), func() {
+		release()
+		storeOperations.ReleaseShared()
+	}, nil
+}
+
 // ExecContext runs a raw statement against the active metric store.
 func ExecContext(ctx context.Context, query string, args ...any) (sql.Result, metric.Driver, error) {
 	if err := storeOperations.Acquire(ctx); err != nil {

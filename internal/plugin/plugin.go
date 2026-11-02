@@ -464,6 +464,7 @@ func (m *Manager) setEnabled(short string, enabled, approved bool) error {
 			return ErrPermissionApprovalRequired
 		}
 		st.ApprovedPermissionsHash = hash
+		st.ApprovalHashSchema = approvalHashSchema
 		m.stateStore().set(short, st)
 	}
 	if err := m.load(short); err != nil {
@@ -492,6 +493,7 @@ func (m *Manager) loadAll() error {
 			continue
 		}
 		short := entry.Name()
+		m.migrateApprovalHash(short)
 		st := m.stateStore().get(short)
 		if !st.Enabled || m.instanceFor(short) != nil {
 			continue
@@ -667,6 +669,30 @@ func ResolveFile(short, name string) (string, error) {
 	return full, nil
 }
 
+// SetPageSecurityHeaders applies the response headers for a file served from a
+// plugin directory. Without the sandbox a plugin page runs as this origin, and a
+// plugin needs no approval to ship one. It stays same origin only when an approved
+// permission already lets the plugin serve same-origin content (routes, hooks or
+// HTML injection), which is also what its pages call back into.
+func SetPageSecurityHeaders(header http.Header, short string) {
+	header.Set("X-Content-Type-Options", "nosniff")
+	if !pagesMayShareOrigin(short) {
+		header.Set("Content-Security-Policy", "sandbox allow-scripts")
+	}
+}
+
+func pagesMayShareOrigin(short string) bool {
+	info, err := readManifest(filepath.Join(DataDir, short))
+	if err != nil {
+		return false
+	}
+	p := info.Permissions
+	if !p.AllowRoutes && !p.AllowHooks && !p.AllowHTMLInject {
+		return false
+	}
+	return global.stateStore().get(short).ApprovedPermissionsHash == approvalPermissionsHash(p)
+}
+
 // hooksOf returns a snapshot of the hooks with the given kind.
 func (m *Manager) hooksOf(kind hookKind) []*hookEntry {
 	m.mu.RLock()
@@ -758,19 +784,40 @@ func validShort(short string) bool {
 
 // permissionsRequireApproval reports whether the manifest declares at least
 // one approval-relevant capability. Plugins without dangerous capabilities
-// (for example only declaring node modules, limits or the timeout) enable
-// without an approval step.
+// (for example only declaring limits or the timeout) enable without an approval
+// step. Node modules count: they add raw sockets and the process object.
 func permissionsRequireApproval(p models.PluginPermissions) bool {
-	return p.AllowSystemRPC || p.AllowRoutes || p.AllowHooks || p.AllowHTMLInject ||
+	return p.Node || p.AllowSystemRPC || p.AllowRoutes || p.AllowHooks || p.AllowHTMLInject ||
 		p.AllowExec || p.AllowListen || p.AllowAllFileAccess
 }
 
 // approvalPermissionsHash canonicalizes the approval-relevant permissions so
 // approval can be compared across plugin upgrades. Runtime settings such as
-// node modules, resource limits and the execution timeout are granted by
-// default and do not participate in the approval hash.
+// resource limits and the execution timeout are granted by default and do not
+// participate in the approval hash.
 func approvalPermissionsHash(p models.PluginPermissions) string {
+	return hashApprovalPermissions(p, p.Node)
+}
+
+// migrateApprovalHash carries an approval given before node joined the hash. It
+// only runs for states not yet stamped, so a later upgrade that adds node to an
+// approved plugin still asks again. Plugins that were never approved stay so.
+func (m *Manager) migrateApprovalHash(short string) {
+	st := m.stateStore().get(short)
+	if st.ApprovedPermissionsHash == "" || st.ApprovalHashSchema >= approvalHashSchema {
+		return
+	}
+	if info, err := readManifest(filepath.Join(DataDir, short)); err == nil &&
+		st.ApprovedPermissionsHash == hashApprovalPermissions(info.Permissions, false) {
+		st.ApprovedPermissionsHash = approvalPermissionsHash(info.Permissions)
+	}
+	st.ApprovalHashSchema = approvalHashSchema
+	m.stateStore().set(short, st)
+}
+
+func hashApprovalPermissions(p models.PluginPermissions, node bool) string {
 	data, _ := json.Marshal(models.PluginPermissions{
+		Node:               node,
 		AllowSystemRPC:     p.AllowSystemRPC,
 		AllowRoutes:        p.AllowRoutes,
 		AllowHooks:         p.AllowHooks,
