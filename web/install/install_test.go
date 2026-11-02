@@ -44,6 +44,7 @@ func performJSON(r http.Handler, method, path string, body any) *httptest.Respon
 	encoded, _ := json.Marshal(body)
 	request := httptest.NewRequest(method, path, bytes.NewReader(encoded))
 	request.Header.Set("Content-Type", "application/json")
+	request.Host = "127.0.0.1:25774"
 	request.RemoteAddr = "127.0.0.1:54321"
 	response := httptest.NewRecorder()
 	r.ServeHTTP(response, request)
@@ -138,10 +139,14 @@ func TestInstallRejectsUnknownDSN(t *testing.T) {
 // stops at validation with 400 and creates nothing.
 func installRequest(remoteAddr string, headers map[string]string) *http.Request {
 	request := httptest.NewRequest(http.MethodPost, APIPath+"/complete", strings.NewReader(`{"username":"admin"}`))
-	request.Host = "monitor.example"
+	request.Host = "127.0.0.1:25774"
 	request.RemoteAddr = remoteAddr
 	request.Header.Set("Content-Type", "application/json")
 	for name, value := range headers {
+		if name == "Host" {
+			request.Host = value
+			continue
+		}
 		request.Header.Set(name, value)
 	}
 	return request
@@ -173,7 +178,16 @@ func TestInstallGuards(t *testing.T) {
 		{"proxied with token", loopback, map[string]string{"X-Forwarded-For": "203.0.113.9", SetupTokenHeader: token}, http.StatusBadRequest},
 		{"foreign origin on loopback", loopback, map[string]string{"Origin": "https://evil.example"}, http.StatusForbidden},
 		{"null origin on loopback", loopback, map[string]string{"Origin": "null"}, http.StatusForbidden},
-		{"same origin on loopback", loopback, map[string]string{"Origin": "https://monitor.example"}, http.StatusBadRequest},
+		{"same origin on loopback", loopback, map[string]string{"Origin": "http://127.0.0.1:25774"}, http.StatusBadRequest},
+		{"localhost host", loopback, map[string]string{"Host": "LOCALHOST:25774"}, http.StatusBadRequest},
+		{"ipv6 host", "[::1]:4000", map[string]string{"Host": "[::1]:25774"}, http.StatusBadRequest},
+		{"rebound host", loopback, map[string]string{"Host": "evil.example:25774"}, http.StatusUnauthorized},
+		{"rebound host with origin", loopback, map[string]string{"Host": "evil.example:25774", "Origin": "http://evil.example:25774"}, http.StatusUnauthorized},
+		{"lookalike host", loopback, map[string]string{"Host": "localhost.evil.example"}, http.StatusUnauthorized},
+		{"other loopback port", loopback, map[string]string{"Origin": "http://127.0.0.1:9999"}, http.StatusForbidden},
+		{"non-web origin scheme", loopback, map[string]string{"Origin": "ftp://127.0.0.1:25774"}, http.StatusUnauthorized},
+		{"proxied Via", loopback, map[string]string{"Via": "1.1 proxy"}, http.StatusUnauthorized},
+		{"public host with token", loopback, map[string]string{"Host": "monitor.example", "Origin": "https://monitor.example", SetupTokenHeader: token}, http.StatusBadRequest},
 		{"form content type", loopback, map[string]string{"Content-Type": "application/x-www-form-urlencoded"}, http.StatusUnsupportedMediaType},
 		{"plain content type", loopback, map[string]string{"Content-Type": "text/plain"}, http.StatusUnsupportedMediaType},
 		{"json with charset", loopback, map[string]string{"Content-Type": "application/json; charset=utf-8"}, http.StatusBadRequest},

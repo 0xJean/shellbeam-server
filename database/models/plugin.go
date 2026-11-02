@@ -30,7 +30,7 @@ type Plugin struct {
 // plugin-owned RPC methods (server.registerRPC), and reading/writing files
 // inside the plugin directory.
 type PluginPermissions struct {
-	Node                bool  `json:"node"`                // Node.js compatibility modules (runtime setting, not approval-relevant)
+	Node                bool  `json:"node"`                // Node.js compatibility modules; approval-relevant
 	AllowSystemRPC      bool  `json:"allowSystemRPC"`      // server.call: call system RPC methods with admin authority
 	AllowRoutes         bool  `json:"allowRoutes"`         // server.route: register HTTP routes on the host engine
 	AllowHooks          bool  `json:"allowHooks"`          // server.hook: modify HTTP requests/responses and intercept WebSocket connections/frames

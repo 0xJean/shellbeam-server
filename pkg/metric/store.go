@@ -421,6 +421,15 @@ func (s *Store) QueryContext(ctx context.Context, query string, args ...any) (*s
 	return s.reader().QueryContext(ctx, query, args...)
 }
 
+// QueryReadOnly runs a raw query with writes refused by the database. The caller
+// must invoke the returned release function after closing rows.
+func (s *Store) QueryReadOnly(ctx context.Context, query string, args ...any) (*sql.Rows, func(), error) {
+	if err := s.ensureOpen(); err != nil {
+		return nil, nil, err
+	}
+	return QueryReadOnly(ctx, s.reader(), s.Driver(), query, args...)
+}
+
 // ExecContext executes a raw statement against the Store's primary write pool.
 func (s *Store) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	if err := s.ensureOpen(); err != nil {

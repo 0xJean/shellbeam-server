@@ -60,6 +60,7 @@ func init() {
 		Summary: "Update settings (partial)",
 		Returns: "null | { restart_required: true, guide_path: string }",
 	})
+	rpc.MarkSensitiveWhen("admin:editSettings", settingsUpdateNeedsChallenge)
 	RegisterWithGroupAndMeta("clearAllRecords", rpc.RoleAdmin, adminClearAllRecords, &rpc.MethodMeta{
 		Name:    "admin:clearAllRecords",
 		Summary: "Delete all load and ping records",
@@ -152,6 +153,9 @@ func adminEditSettings(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.
 		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid or missing request body: "+err.Error(), nil)
 	}
 	removeRetiredLowResourceMode(cfg)
+	if err := normalizeSettingsUpdate(cfg); err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
+	}
 	if err := validateMetricRollupSettingChanges(cfg); err != nil {
 		return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
 	}

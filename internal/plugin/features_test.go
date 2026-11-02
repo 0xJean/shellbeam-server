@@ -658,7 +658,7 @@ func TestServerModulePermissionEnforcement(t *testing.T) {
 
 	// 无危险权限：直接启用，不要求批准。
 	zipPath := writePluginZip(t, map[string]string{
-		"komari-plugin.json": `{"name":"Plain","short":"plain","version":"1.0.0","permissions":{"node":true,"timeout":5}}`,
+		"komari-plugin.json": `{"name":"Plain","short":"plain","version":"1.0.0","permissions":{"timeout":5}}`,
 		"script.js":          `const server = require("server"); function load() { server.registerRPC("plugin:plain", () => ({ok:true})); }`,
 	})
 	if _, err := InstallZip(zipPath); err != nil {

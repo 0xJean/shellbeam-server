@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -64,7 +65,7 @@ type databaseTablesResponse struct {
 func init() {
 	RegisterWithGroupAndMeta("dbQuery", rpc.RoleAdmin, adminDBQuery, &rpc.MethodMeta{
 		Name:    "admin:dbQuery",
-		Summary: "Execute a SQL query against the main or metrics database",
+		Summary: "Execute a read-only SQL query against the main or metrics database",
 		Params: []rpc.ParamMeta{
 			{Name: "database", Type: "main | metrics", Description: "Database target (default main)"},
 			{Name: "sql", Type: "string", Required: true, Description: "SQL query to execute"},
@@ -92,6 +93,7 @@ func init() {
 		Returns: "{ database: string, driver: string, tables: string[] }",
 	})
 	rpc.MarkSensitive("admin:dbExec")
+	rpc.MarkSensitive("admin:dbQuery")
 }
 
 func adminDBQuery(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
@@ -102,6 +104,9 @@ func adminDBQuery(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonR
 
 	response, err := queryDatabase(ctx, target, statement, params.Args, limit)
 	if err != nil {
+		if errors.Is(err, errNotReadOnlySQL) {
+			return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
+		}
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to execute database query: "+err.Error(), nil)
 	}
 	return response, nil
@@ -197,7 +202,7 @@ func parseDatabaseTarget(value *string) (string, *rpc.JsonRpcError) {
 }
 
 func queryDatabase(ctx context.Context, target, statement string, args []any, limit int) (databaseQueryResponse, error) {
-	rows, driver, release, err := openDatabaseRows(ctx, target, statement, args...)
+	rows, driver, release, err := openReadOnlyDatabaseRows(ctx, target, statement, args...)
 	if err != nil {
 		return databaseQueryResponse{}, err
 	}
@@ -289,6 +294,29 @@ func openDatabaseRows(ctx context.Context, target, statement string, args ...any
 		return rows, metric.DriverSQLite, func() {}, err
 	case databaseTargetMetrics:
 		return metricstore.QueryContext(ctx, statement, args...)
+	default:
+		return nil, "", nil, fmt.Errorf("unsupported database target: %s", target)
+	}
+}
+
+// openReadOnlyDatabaseRows checks the statement, then runs it on a read-only
+// connection or transaction.
+func openReadOnlyDatabaseRows(ctx context.Context, target, statement string, args ...any) (*sql.Rows, metric.Driver, func(), error) {
+	switch target {
+	case databaseTargetMain:
+		if err := validateReadOnlySQL(metric.DriverSQLite, statement); err != nil {
+			return nil, "", nil, err
+		}
+		db, err := dbcore.GetDBInstance().DB()
+		if err != nil {
+			return nil, "", nil, err
+		}
+		rows, release, err := metric.QueryReadOnly(ctx, db, metric.DriverSQLite, statement, args...)
+		return rows, metric.DriverSQLite, release, err
+	case databaseTargetMetrics:
+		return metricstore.QueryReadOnly(ctx, func(driver metric.Driver) (string, error) {
+			return statement, validateReadOnlySQL(driver, statement)
+		}, args...)
 	default:
 		return nil, "", nil, fmt.Errorf("unsupported database target: %s", target)
 	}

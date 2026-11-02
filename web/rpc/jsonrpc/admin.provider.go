@@ -17,6 +17,7 @@ import (
 func init() {
 	reg("getOidcProvider", adminGetOidc, "Get OIDC provider config or templates")
 	reg("setOidcProvider", adminSetOidc, "Set OIDC provider config")
+	rpc.MarkSensitive("admin:setOidcProvider")
 }
 
 func adminGetOidc(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {

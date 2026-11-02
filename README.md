@@ -39,7 +39,7 @@ A Git checkout supplies the build commit automatically. Building a source archiv
 
 - ShellBeam's product version is independent of the Komari API compatibility version. `/api/version` keeps `version: "1.6.0"`; build flags only set `utils.ServerVersion` and `utils.VersionHash`.
 - The same read-only `/api/version` identity is available before first-run initialization and in recovery guides, so clients can check `product: "ShellBeam Server"` before submitting administrator credentials. Installation mode still exposes no normal account or monitoring routes.
-- First-run installation accepts a request without a token only from a direct loopback peer with no forwarding headers, such as an SSH tunnel. Other requests must send the one-time token printed to the console in `X-Install-Token`. See [First initialization and authorization](docs/shellbeam-server.md#first-initialization-and-authorization).
+- First-run installation accepts a request without a token only from a direct loopback peer with a loopback `Host` and no forwarding headers, such as an SSH tunnel. Other requests must send the one-time token printed to the console in `X-Install-Token`. See [First initialization and authorization](docs/shellbeam-server.md#first-initialization-and-authorization).
 - Existing Komari Agent executables remain usable. Server releases do not install, rename, or update Agents.
 - `KOMARI_LISTEN` and the existing database flags remain supported. `SHELLBEAM_LISTEN` is a branded alias; an explicit `--listen` flag takes precedence.
 - Existing data should first be tested on an offline backup with the same filesystem paths. Older databases may require the retained migration or recovery APIs; the service entry page does not perform these operations.

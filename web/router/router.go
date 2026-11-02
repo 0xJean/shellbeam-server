@@ -90,7 +90,9 @@ func registerAdminRoutes(r *gin.Engine) {
 	admin.RegisterPprofRoutes(g)
 
 	// --- 二进制/流/重定向类，保留 REST handler ---
-	g.GET("/download/backup", admin.DownloadBackup)
+	// The archive holds TOTP seeds, agent tokens and the API key. Clients send the
+	// code as an X-2FA-Code header or a 2fa_code query parameter.
+	g.GET("/download/backup", api.RequireSensitive2FA(), admin.DownloadBackup)
 	uploadHandler := admin.NewArchiveUploadHandler()
 	uploadGroup := g.Group("/upload")
 	{
@@ -129,7 +131,10 @@ func registerAdminRoutes(r *gin.Engine) {
 	twoFactor := g.Group("/2fa")
 	{
 		twoFactor.GET("/generate", admin.Generate2FA)
-		twoFactor.POST("/enable", admin.Enable2FA)
+		// The challenge passes for an account without 2FA, so first enrolment needs no
+		// code; replacing a secret needs one from the current secret. The `code`
+		// query parameter stays the code for the new secret.
+		twoFactor.POST("/enable", api.RequireSensitive2FA(), admin.Enable2FA)
 		twoFactor.POST("/disable", api.RequireSensitive2FA(), admin.Disable2FA)
 	}
 

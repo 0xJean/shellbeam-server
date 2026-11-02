@@ -71,7 +71,7 @@ func NewController(db *gorm.DB) *Controller {
 func (c *Controller) Activate() {
 	c.setupTokenOnce.Do(func() {
 		c.setupToken = rand.Text()
-		logger.Infof("install", "First-run setup token (send as %s unless connecting directly over loopback): %s", SetupTokenHeader, c.setupToken)
+		logger.Infof("install", "First-run setup token (send as %s unless connecting directly to a loopback address): %s", SetupTokenHeader, c.setupToken)
 	})
 	c.active.Store(true)
 }
@@ -105,9 +105,14 @@ func (c *Controller) requireActive(ctx *gin.Context) {
 	ctx.Next()
 }
 
-// requireSetupToken admits direct loopback peers, which is how an SSH tunnel
-// arrives, and otherwise requires the token. It reads the raw RemoteAddr because
-// gin's ClientIP can be influenced by forwarding headers.
+// requireSetupToken admits direct loopback requests, which is how an SSH tunnel
+// and the ShellBeam client's local acceptance flows arrive, and otherwise requires
+// the token. It reads the raw RemoteAddr because gin's ClientIP can be influenced
+// by forwarding headers.
+//
+// A same-host reverse proxy that rewrites Host to a loopback address and adds no
+// forwarding header still looks like a direct request; only the token would stop
+// that. Such a deployment must not expose a server that is waiting for install.
 func (c *Controller) requireSetupToken(ctx *gin.Context) {
 	if isDirectLoopbackRequest(ctx.Request) {
 		ctx.Next()
@@ -131,13 +136,43 @@ func isDirectLoopbackRequest(request *http.Request) bool {
 	if ip == nil || !ip.IsLoopback() {
 		return false
 	}
+	// A loopback Host stops DNS rebinding, where a browser reaches this listener
+	// under an attacker's name.
+	if !isLoopbackHost(request.Host) {
+		return false
+	}
+	if origin := request.Header.Get("Origin"); origin != "" {
+		parsed, err := url.Parse(origin)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") ||
+			!strings.EqualFold(parsed.Host, request.Host) {
+			return false
+		}
+	}
 	// A reverse proxy on the same host also connects from loopback.
 	for name := range request.Header {
-		if name == "Forwarded" || name == "X-Real-Ip" || strings.HasPrefix(name, "X-Forwarded-") {
+		switch name {
+		case "Forwarded", "Via", "X-Real-Ip", "X-Client-Ip", "True-Client-Ip", "Cf-Connecting-Ip":
+			return false
+		}
+		if strings.HasPrefix(name, "X-Forwarded-") {
 			return false
 		}
 	}
 	return true
+}
+
+// isLoopbackHost reports whether a Host header names this machine literally.
+func isLoopbackHost(hostport string) bool {
+	host := hostport
+	if name, _, err := net.SplitHostPort(hostport); err == nil {
+		host = name
+	}
+	host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func rejectForeignOrigin(ctx *gin.Context) {

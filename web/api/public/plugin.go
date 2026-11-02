@@ -18,5 +18,6 @@ func ServePluginFile(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
+	plugin.SetPageSecurityHeaders(c.Writer.Header(), c.Param("short"))
 	c.File(full)
 }

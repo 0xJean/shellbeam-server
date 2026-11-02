@@ -49,7 +49,7 @@ func CallFromGin(c *gin.Context, method string, params any) *rpc.JsonRpcResponse
 // 若请求已被 RequireSensitive2FA 中间件校验过(sensitive_2fa_verified),则跳过,避免重复校验。
 func dispatchWithSensitive(ctx context.Context, c *gin.Context, meta *rpc.ContextMeta, req *rpc.JsonRpcRequest) *rpc.JsonRpcResponse {
 	if meta != nil && meta.Principal != nil && (c == nil || !c.GetBool("sensitive_2fa_verified")) &&
-		rpc.IsSensitive(req.Method) && rpc.CheckPrincipal(meta.Principal, req.Method) {
+		rpc.RequiresSensitive(req) && rpc.CheckPrincipal(meta.Principal, req.Method) {
 		code := extractRequestTwoFACode(req)
 		if code == "" && c != nil {
 			code = headerOrQueryTwoFACode(c)
@@ -119,6 +119,8 @@ func serveWebSocket(c *gin.Context) {
 			conn.WriteJSON(rpc.ErrorResponse(req.ID, rpc.PermissionDenied, "credentials are no longer valid", nil))
 			break
 		}
+		// A share link can expire or be replaced while the socket stays open.
+		meta.TempShareValid = hasTempShareAccess(c)
 		// 同步写：SafeConn 内部有锁，串行写避免响应乱序与并发竞态。
 		conn.WriteJSON(dispatchWithSensitive(context.Background(), c, meta, &req))
 	}

@@ -669,7 +669,7 @@ stdout  stderr  stdin
 
 重要差异：
 
-- `process.env` 是构造 runtime 时的宿主环境快照；修改 JS 对象不会修改宿主环境。
+- `process.env` 是宿主环境中安全变量（`PATH`、`HOME`、`USER`、`PWD`、`TZ`、`TERM`、`LANG`、`LC_*`、`TMPDIR`、`TEMP`、`TMP`、`NODE_ENV`）的快照；其他变量不可见，修改 JS 对象不会修改宿主环境。
 - `argv` 是合成值；`execPath/pid/ppid` 指向当前 Komari/Go 宿主进程。
 - `version` 来自 Go 版本，`versions.node` 固定为 `"0.0.0-goja"`；`release`、`title`、
   `connected` 和 `config` 也不是完整 Node 值。
