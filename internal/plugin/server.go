@@ -573,7 +573,7 @@ func (m *Manager) staticHandler(short, mount string) gin.HandlerFunc {
 			}
 			target = filepath.Join(cfg.dir, "index.html")
 		}
-		c.File(target)
+		serveConfined(c.Writer, c.Request, inst.dir, target)
 	}
 }
 

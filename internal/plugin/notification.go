@@ -49,6 +49,18 @@ func (m *Manager) registerNotificationChannel(
 	return nil
 }
 
+// withoutClientTokens drops the agent tokens from a notification. A plugin that
+// registers a channel needs no approval and has no use for them.
+func withoutClientTokens(notification messageSender.Notification) messageSender.Notification {
+	clients := make([]models.Client, len(notification.Event.Clients))
+	copy(clients, notification.Event.Clients)
+	for i := range clients {
+		clients[i].Token = ""
+	}
+	notification.Event.Clients = clients
+	return notification
+}
+
 type pluginNotificationChannel struct {
 	short   string
 	host    *jsruntime.Host
@@ -68,7 +80,7 @@ func (c *pluginNotificationChannel) Send(ctx context.Context, notification messa
 	queued := c.host.RunOnLoop(func(vm *goja.Runtime) {
 		var value goja.Value
 		runErr := c.host.RunJob(vm, "plugin notification "+c.short, func() error {
-			raw, err := json.Marshal(notification)
+			raw, err := json.Marshal(withoutClientTokens(notification))
 			if err != nil {
 				return err
 			}

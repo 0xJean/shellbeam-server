@@ -253,7 +253,7 @@ func (m *Manager) load(short string) error {
 	if err := CheckKomariVersion(info.Komari); err != nil {
 		return err
 	}
-	script, err := os.ReadFile(filepath.Join(dir, info.Entry))
+	script, err := readConfined(dir, info.Entry)
 	if err != nil {
 		return fmt.Errorf("read plugin entry %s: %w", info.Entry, err)
 	}

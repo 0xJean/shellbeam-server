@@ -3,7 +3,6 @@ package plugin
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -19,7 +18,7 @@ var urlSchemeRE = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+\-.]*:`)
 // directory.
 func readManifest(dir string) (models.Plugin, error) {
 	var info models.Plugin
-	data, err := os.ReadFile(filepath.Join(dir, manifestFile))
+	data, err := readConfined(dir, manifestFile)
 	if err != nil {
 		return info, fmt.Errorf("read plugin manifest: %w", err)
 	}

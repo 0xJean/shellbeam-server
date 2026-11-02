@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/komari-monitor/komari/database/dbcore"
 	"github.com/komari-monitor/komari/database/models"
 	"github.com/komari-monitor/komari/pkg/rpc"
@@ -87,8 +88,14 @@ func TestHookUpgradePassesThrough(t *testing.T) {
 	withTempDataDir(t)
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
+	upgrader := websocket.Upgrader{}
 	engine.GET("/ws", func(c *gin.Context) {
-		c.String(http.StatusOK, "direct")
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(c.GetHeader("x")))
 	})
 	Init(engine)
 
@@ -109,13 +116,19 @@ func TestHookUpgradePassesThrough(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
-	req.Header.Set("Connection", "upgrade")
-	req.Header.Set("Upgrade", "websocket")
-	WrapHandler(engine).ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK || rec.Body.String() != "direct" {
-		t.Fatalf("upgrade passthrough failed: status = %d, body = %q", rec.Code, rec.Body.String())
+	srv := httptest.NewServer(WrapHandler(engine))
+	defer srv.Close()
+	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http")+"/ws", nil)
+	if err != nil {
+		t.Fatalf("upgrade through the hook chain failed: %v", err)
+	}
+	defer conn.Close()
+	_, message, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(message) != "y" {
+		t.Fatalf("request hook did not run on the upgrade, frame = %q", message)
 	}
 }
 

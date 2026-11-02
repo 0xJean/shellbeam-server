@@ -19,5 +19,5 @@ func ServePluginFile(c *gin.Context) {
 		return
 	}
 	plugin.SetPageSecurityHeaders(c.Writer.Header(), c.Param("short"))
-	c.File(full)
+	plugin.ServeInstalledFile(c.Writer, c.Request, c.Param("short"), full)
 }

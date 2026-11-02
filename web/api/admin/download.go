@@ -63,6 +63,9 @@ func walkDirToZip(zipWriter *zip.Writer, contentDir string) error {
 			})
 			return err
 		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
 		f, err := os.Open(p)
 		if err != nil {
 			return err

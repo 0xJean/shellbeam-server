@@ -97,3 +97,39 @@ func TestInjectSurvivesBareConnectionUpgradeHeader(t *testing.T) {
 		t.Fatalf("real upgrade must skip injection, body = %q", rec2.Body.String())
 	}
 }
+
+// A plain request with upgrade headers must not skip the hooks; only a handler
+// that really hijacks leaves the response hooks out.
+func TestUpgradeHeadersDoNotSkipHooks(t *testing.T) {
+	withTempDataDir(t)
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.GET("/api/guarded", func(c *gin.Context) { c.String(http.StatusOK, "body") })
+	Init(engine)
+
+	zipPath := writePluginZip(t, map[string]string{
+		"komari-plugin.json": `{"name":"Guard","short":"hookguard","version":"1.0.0","permissions":{"allowHooks":true,"timeout":5}}`,
+		"script.js": `
+			const server = require("server");
+			function load() {
+				server.hook("response", function (req, res) { res.body = "redacted"; });
+			}
+		`,
+	})
+	if _, err := InstallZip(zipPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetEnabled("hookguard", true, true); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = SetEnabled("hookguard", false, false) }()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/guarded", nil)
+	req.Header.Set("Connection", "upgrade")
+	req.Header.Set("Upgrade", "websocket")
+	rec := httptest.NewRecorder()
+	global.wrapHandler(engine).ServeHTTP(rec, req)
+	if rec.Body.String() != "redacted" {
+		t.Fatalf("body = %q, the response hook was skipped", rec.Body.String())
+	}
+}
